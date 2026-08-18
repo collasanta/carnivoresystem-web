@@ -3,28 +3,28 @@ import { LinkModule } from "@/components/link-module";
 const MODULES = [
   {
     index: "CS.01",
-    name: "YouTube",
-    detail: "Long-form · recipes · results",
-    href: "https://www.youtube.com/@carnivoresystem",
-  },
-  {
-    index: "CS.02",
     name: "Instagram",
     detail: "Daily meals · training",
     href: "https://www.instagram.com/carnivoresystem",
   },
   {
-    index: "CS.03",
+    index: "CS.02",
     name: "TikTok",
     detail: "Daily shorts",
     href: "https://www.tiktok.com/@carnivoresystem",
   },
   {
-    index: "CS.04",
+    index: "CS.03",
     name: "Carnivore System App",
     detail: "iOS · macro tracker",
     href: "/app",
     chip: "Waitlist",
+  },
+  {
+    index: "CS.04",
+    name: "YouTube",
+    detail: "Long-form · recipes · results",
+    href: "https://www.youtube.com/@carnivoresystem",
   },
   {
     index: "CS.05",

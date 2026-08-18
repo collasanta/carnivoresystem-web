@@ -42,7 +42,7 @@ export default function AppWaitlist() {
             aria-hidden="true"
             className="size-[7px] flex-none animate-ember rounded-full bg-ember shadow-[0_0_8px_var(--color-ember)] motion-reduce:animate-none"
           />
-          CS.04 — in development
+          CS.03 — in development
         </div>
 
         <h1 className="mt-3.5 font-display font-bold text-[clamp(32px,9vw,44px)] leading-[0.96] tracking-[-0.01em] uppercase">
