@@ -133,16 +133,17 @@
    --------------------------------------------------------------- */
 
 @theme {
-  --color-char: #131010;
-  --color-smoke: #1e1817;
-  --color-bone: #ede3d3;
-  --color-ember: #d8502f;
-  --color-blood: #a6251c;
-  --color-salt: #8a7f76;
-  --color-edge: #2c2422;
-  --color-edge-hover: #3a2b25;
-  --color-mod-hover: #241c1a;
-  --color-ash: #4a423d;
+  /* Bone — butcher paper, ink, and a blood stamp. */
+  --color-char: #ede7d9;
+  --color-smoke: #e3dbc9;
+  --color-bone: #17110f;
+  --color-ember: #a6251c;
+  --color-blood: #7a1a13;
+  --color-salt: #6b6053;
+  --color-edge: #cfc5ae;
+  --color-edge-hover: #b9ac8e;
+  --color-mod-hover: #dad1bc;
+  --color-ash: #a79b85;
 
   --font-display: var(--font-archivo-black), sans-serif;
   --font-mono: var(--font-space-mono), monospace;
@@ -178,7 +179,7 @@
     background-image:
       radial-gradient(
         ellipse 80% 50% at 50% -10%,
-        rgba(216, 80, 47, 0.08),
+        rgba(166, 37, 28, 0.06),
         transparent 60%
       ),
       url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120' viewBox='0 0 120 120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.03 0'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23n)'/%3E%3C/svg%3E");

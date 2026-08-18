@@ -24,7 +24,7 @@ export function LinkModule({
       tabIndex={dev ? -1 : undefined}
       className={cn(
         "flex items-center gap-3.5 border border-edge border-l-[3px] border-l-blood bg-smoke py-4 pr-4 pl-3.5 text-bone no-underline",
-        "transition-[border-color,background-color,transform] duration-[180ms] ease-out",
+        "transition-[border-color,background-color,translate] duration-[180ms] ease-out",
         "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ember",
         dev
           ? "cursor-default opacity-55"
