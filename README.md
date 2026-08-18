@@ -24,6 +24,23 @@ npm run dev
   `dev: true` flag. The chip flips from "In dev" to "Live" automatically.
 - Social URLs point at the `@carnivoresystem` handles.
 
+## Waitlist (/app)
+
+`/app` is the app waitlist page; CS.04 on the homepage links to it. The form posts
+to `app/api/waitlist/route.ts`, which forwards to whichever provider is configured.
+**Until you set one, submissions fail with a 502** — the page renders and validates
+fine, but nothing is stored.
+
+Set one of these in Vercel → Settings → Environment Variables, then redeploy:
+
+| Provider | Variables | Use when |
+|---|---|---|
+| Kit (ConvertKit) | `KIT_API_KEY`, `KIT_FORM_ID` | You want to broadcast a launch series to the list later. Checked first. |
+| Formspree | `FORMSPREE_FORM_ID` | You just want the addresses in a dashboard. Simpler to set up. |
+
+The form has a honeypot field: a submission with `company` filled returns 200 and
+stores nothing, so bots get no signal.
+
 ## Later
 
 - Add Meta Pixel / GA tag in `app/layout.tsx` when the store launches.

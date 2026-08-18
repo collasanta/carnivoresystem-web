@@ -23,8 +23,8 @@ const MODULES = [
     index: "CS.04",
     name: "Carnivore System App",
     detail: "iOS · macro tracker",
-    href: "#",
-    dev: true,
+    href: "/app",
+    chip: "Waitlist",
   },
   {
     index: "CS.05",

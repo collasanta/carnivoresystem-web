@@ -8,6 +8,8 @@ type LinkModuleProps = {
   href: string;
   /** Renders the "In dev" state: dimmed, unclickable, out of the tab order. */
   dev?: boolean;
+  /** Overrides the chip label. Defaults to "Live", or "In dev" when `dev`. */
+  chip?: string;
 };
 
 export function LinkModule({
@@ -16,6 +18,7 @@ export function LinkModule({
   detail,
   href,
   dev = false,
+  chip,
 }: LinkModuleProps) {
   return (
     <a
@@ -46,7 +49,7 @@ export function LinkModule({
           dev ? "border-salt text-salt" : "border-ember text-ember",
         )}
       >
-        {dev ? "In dev" : "Live"}
+        {chip ?? (dev ? "In dev" : "Live")}
       </span>
     </a>
   );
