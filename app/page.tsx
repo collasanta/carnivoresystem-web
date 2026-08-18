@@ -24,7 +24,8 @@ const MODULES = [
     index: "CS.04",
     name: "YouTube",
     detail: "Long-form · recipes · results",
-    href: "https://www.youtube.com/@carnivoresystem",
+    href: "#",
+    dev: true,
   },
   {
     index: "CS.05",
