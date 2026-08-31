@@ -84,14 +84,6 @@ function validate(body: Record<string, unknown>): Profile | string {
 }
 
 export async function POST(request: Request) {
-  const ip =
-    request.headers.get("x-forwarded-for")?.split(",")[0].trim() ??
-    request.headers.get("x-real-ip") ??
-    "unknown";
-  if (rateLimited(ip)) {
-    return json({ error: "That's a lot of analyses. Try again in an hour." }, 429);
-  }
-
   let body: Record<string, unknown>;
   try {
     body = (await request.json()) as Record<string, unknown>;
@@ -101,6 +93,17 @@ export async function POST(request: Request) {
 
   const profile = validate(body);
   if (typeof profile === "string") return json({ error: profile }, 400);
+
+  // Counted only once a request is going to cost something. A malformed body is
+  // free to serve, and charging it against the quota would let a fumbled form
+  // lock someone out of the tool for an hour.
+  const ip =
+    request.headers.get("x-forwarded-for")?.split(",")[0].trim() ??
+    request.headers.get("x-real-ip") ??
+    "unknown";
+  if (rateLimited(ip)) {
+    return json({ error: "That's a lot of analyses. Try again in an hour." }, 429);
+  }
 
   const startedAt = Date.now();
   try {
