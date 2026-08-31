@@ -2,6 +2,7 @@ import { FOOD_BY_SLUG } from "./foods";
 import { NUTRIENTS } from "./nutrients";
 import { TARGETS, energyTarget, resolveTarget, saltContribution } from "./dri";
 import { RED_FLAG_BY_ID } from "./redflags";
+import { buildProtocol, computeScore, pickSurprise } from "./score";
 import { SYMPTOM_BY_ID } from "./symptoms";
 import type {
   Assessment,
@@ -281,7 +282,7 @@ function buildFlags(
     });
   }
 
-  if (/\braw\b[^.]{0,20}\begg|\begg white/i.test(profile.dietText)) {
+  if (profile.dietText && /\braw\b[^.]{0,20}\begg|\begg white/i.test(profile.dietText)) {
     flags.push({
       id: "raw-egg-white",
       severity: "warning",
@@ -366,6 +367,7 @@ export function analyze(
       evidenceGap: nutrient.evidenceGap,
       evidenceHarm: nutrient.evidenceHarm,
       why: nutrient.why,
+      fix: nutrient.fix,
       intake: round(intake),
       target: round(target),
       limit,
@@ -440,6 +442,9 @@ export function analyze(
     supplements,
     unquantifiedSupplements,
     symptomInsights,
+    score: computeScore(nutrients, flags),
+    protocol: buildProtocol(profile, nutrients, flags),
+    surpriseId: pickSurprise(nutrients),
     redFlags,
   };
 }

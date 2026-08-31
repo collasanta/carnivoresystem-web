@@ -1,20 +1,26 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import type { AnalysisReport } from "@/lib/analyzer/types";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { FOOD_BY_SLUG } from "@/lib/analyzer/foods";
+import { WEEKLY_FOODS } from "@/lib/analyzer/builder-foods";
+import { analyze } from "@/lib/analyzer/engine";
+import { presetsToSupplements } from "@/lib/analyzer/supplement-presets";
+import type { NutrientId, ParsedFood, Profile } from "@/lib/analyzer/types";
 import { EMPTY_DRAFT, Quiz, type Draft } from "./quiz";
 import { Report } from "./report";
+import { Teaser } from "./teaser";
 
 const LB_TO_KG = 0.453592;
 const IN_TO_CM = 2.54;
-const DRAFT_KEY = "cs-analyzer-draft-v2";
+const DRAFT_KEY = "cs-analyzer-draft-v3";
+const SUPPS_KEY = "cs-analyzer-supps-v1";
 
 function toNumber(value: string, fallback: number): number {
   const parsed = Number.parseFloat(value.replace(",", "."));
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
-function toPayload(draft: Draft) {
+function profileFrom(draft: Draft): Profile {
   const metric = draft.units === "metric";
   const weight = toNumber(draft.weight, metric ? 80 : 176);
   const heightCm = metric
@@ -31,83 +37,95 @@ function toPayload(draft: Draft) {
     saltType: draft.saltType,
     saltGramsPerDay: toNumber(draft.saltGrams, 6),
     symptoms: draft.symptoms,
-    otherSymptoms: draft.otherSymptoms,
-    supplements: draft.takesSupplements === "yes" ? draft.supplements : "",
-    offDays: draft.hadOffDays === "yes" ? draft.offDays : "",
     alcohol: draft.alcohol,
-    dietText: draft.dietText,
   };
 }
 
-/** Shown while two model calls run back to back — around ten seconds. */
+/**
+ * Structured picks straight to ParsedFood — no model, no network, no parse
+ * ambiguity. Weekly picks average across seven days exactly like the old
+ * prompt instructed the model to do, except now it is arithmetic.
+ */
+function foodsFrom(draft: Draft): ParsedFood[] {
+  const foods: ParsedFood[] = [];
+  for (const [slug, grams] of Object.entries(draft.daily)) {
+    if (!FOOD_BY_SLUG[slug] || !grams) continue;
+    foods.push({ slug, label: FOOD_BY_SLUG[slug].label, gramsPerDay: grams, source: "daily" });
+  }
+  for (const [slug, times] of Object.entries(draft.weekly)) {
+    const spec = WEEKLY_FOODS.find((f) => f.slug === slug);
+    if (!spec || !FOOD_BY_SLUG[slug] || !times) continue;
+    foods.push({
+      slug,
+      label: FOOD_BY_SLUG[slug].label,
+      gramsPerDay: (spec.portionGrams * times) / 7,
+      source: `${times}x/week`,
+    });
+  }
+  return foods;
+}
+
+/** A short beat of theatre. Instant results read as shallow; ~2.5s reads as work. */
 const STAGES = [
-  "Reading what you eat",
-  "Matching it to the food table",
-  "Running the numbers",
-  "Writing it up",
+  "Reading your answers",
+  "Summing 27 nutrients from the food table",
+  "Scoring against your targets",
+  "Building your protocol",
 ];
 
-function Working() {
+function Calculating() {
   const [stage, setStage] = useState(0);
   useEffect(() => {
-    const timer = setInterval(() => setStage((s) => Math.min(s + 1, STAGES.length - 1)), 3200);
+    const timer = setInterval(() => setStage((s) => Math.min(s + 1, STAGES.length - 1)), 620);
     return () => clearInterval(timer);
   }, []);
 
   return (
-    <div className="rounded-2xl border border-line bg-card p-5 shadow-[0_1px_2px_rgba(33,26,18,0.04)]" role="status">
-      <div className="flex items-center gap-2.5 text-[11px] font-semibold tracking-[0.14em] text-mute uppercase">
+    <div className="animate-in fade-in py-10 text-center duration-300" role="status">
+      <div className="mx-auto flex max-w-[360px] flex-col items-center rounded-2xl border border-line bg-card p-7 shadow-[0_1px_3px_rgba(33,26,18,0.05)]">
         <span
           aria-hidden="true"
-          className="size-[7px] flex-none animate-pulse-soft rounded-full bg-walnut motion-reduce:animate-none"
+          className="size-[10px] animate-pulse-soft rounded-full bg-walnut motion-reduce:animate-none"
         />
-        {STAGES[stage]}
+        <p className="mt-4 text-[15px] font-bold text-ink">{STAGES[stage]}&hellip;</p>
+        <div className="mt-4 h-[4px] w-full overflow-hidden rounded-full bg-line">
+          <div
+            className="h-full rounded-full bg-cta transition-[width] duration-500"
+            style={{ width: `${((stage + 1) / STAGES.length) * 100}%` }}
+          />
+        </div>
+        <p className="mt-3 text-[11.5px] leading-relaxed text-mute">
+          Computed from a USDA composition table against published reference intakes — no model
+          guesses a number here.
+        </p>
       </div>
-      <p className="mt-3 text-[12.5px] leading-relaxed text-mute">
-        The vitamin and mineral figures are computed here, not guessed by a model &mdash; so this
-        takes a few seconds longer than a chatbot would, and gives the same answer twice.
-      </p>
     </div>
   );
 }
 
+type Phase = "quiz" | "calculating" | "teaser" | "report";
+
 export function Analyzer() {
   const [draft, setDraft] = useState<Draft>(EMPTY_DRAFT);
-  const [report, setReport] = useState<AnalysisReport | null>(null);
-  const [pending, setPending] = useState(false);
-  const [error, setError] = useState<string>();
+  const [phase, setPhase] = useState<Phase>("quiz");
+  const [supps, setSupps] = useState<Partial<Record<NutrientId, boolean>>>({});
   const resultRef = useRef<HTMLDivElement>(null);
 
-  // The draft outlives the component: a refresh mid-quiz, or "edit and re-run"
-  // after a report, both come back with every answer intact. localStorage can
-  // throw (private windows, blocked storage), so every touch is guarded and the
-  // quiz works identically with no storage at all.
   useEffect(() => {
     try {
       const raw = window.localStorage.getItem(DRAFT_KEY);
-      // Deliberate one-time synchronous setState: reading localStorage during
-      // render would mismatch the server HTML, so the saved draft has to land
-      // in a post-hydration effect. It runs once and cannot cascade.
       if (raw) {
-        const saved = JSON.parse(raw) as Partial<Draft>;
-        const merged = { ...EMPTY_DRAFT, ...saved };
-        // Drafts saved before the yes/no gates existed carry text but no
-        // answer; infer "yes" so the text is not silently dropped.
-        if (!saved.takesSupplements && merged.supplements.trim()) merged.takesSupplements = "yes";
         // eslint-disable-next-line react-hooks/set-state-in-effect
-        setDraft(merged);
+        setDraft({ ...EMPTY_DRAFT, ...(JSON.parse(raw) as Partial<Draft>) });
       }
+      const rawSupps = window.localStorage.getItem(SUPPS_KEY);
+      if (rawSupps) setSupps(JSON.parse(rawSupps) as Partial<Record<NutrientId, boolean>>);
     } catch {
       /* storage unavailable — the quiz still works, it just forgets */
     }
   }, []);
 
   useEffect(() => {
-    // Identity check, not a flag: the mount render still holds the literal
-    // EMPTY_DRAFT object, and saving it would race the load effect and wipe a
-    // stored draft before it is applied (StrictMode's double-invoke makes this
-    // a certainty in dev). Any real change — restored or typed — replaces the
-    // object, and only those writes reach storage.
     if (draft === EMPTY_DRAFT) return;
     try {
       window.localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
@@ -117,45 +135,68 @@ export function Analyzer() {
   }, [draft]);
 
   useEffect(() => {
-    if (report) resultRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-  }, [report]);
-
-  async function run() {
-    setPending(true);
-    setError(undefined);
     try {
-      const response = await fetch("/api/analyze", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(toPayload(draft)),
-      });
-      const data = (await response.json()) as AnalysisReport & { error?: string };
-      if (!response.ok) {
-        setError(data.error ?? "Something went wrong. Try again.");
-        return;
-      }
-      setReport(data);
+      window.localStorage.setItem(SUPPS_KEY, JSON.stringify(supps));
     } catch {
-      setError("Network error. Try again.");
-    } finally {
-      setPending(false);
+      /* ditto */
     }
+  }, [supps]);
+
+  useEffect(() => {
+    if (phase === "teaser" || phase === "report") {
+      resultRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [phase]);
+
+  // Everything below runs in the browser: same engine, same tables, zero
+  // network. Recomputes live when a supplement toggle flips.
+  const profile = useMemo(() => profileFrom(draft), [draft]);
+  const parsed = useMemo(() => foodsFrom(draft), [draft]);
+
+  const baseAssessment = useMemo(
+    () => (phase === "quiz" ? null : analyze(profile, parsed)),
+    [phase, profile, parsed],
+  );
+  const assessment = useMemo(
+    () => (phase === "quiz" ? null : analyze(profile, parsed, presetsToSupplements(supps))),
+    [phase, profile, parsed, supps],
+  );
+
+  function complete(finalDraft: Draft) {
+    setDraft(finalDraft);
+    setPhase("calculating");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+    setTimeout(() => setPhase("teaser"), 2600);
   }
 
-  if (report) {
+  if (phase === "calculating") return <Calculating />;
+
+  if (phase === "teaser" && assessment) {
     return (
       <div ref={resultRef}>
-        <Report report={report} onRestart={() => setReport(null)} />
+        <Teaser assessment={assessment} onReveal={() => setPhase("report")} />
       </div>
     );
   }
 
-  return (
-    <div>
-      {pending ? <Working /> : null}
-      <div className={pending ? "mt-5 opacity-40" : undefined} aria-busy={pending}>
-        <Quiz draft={draft} onChange={setDraft} onSubmit={run} pending={pending} error={error} />
+  if (phase === "report" && assessment && baseAssessment) {
+    return (
+      <div ref={resultRef}>
+        <Report
+          assessment={assessment}
+          baseGapIds={baseAssessment.nutrients
+            .filter((n) => n.band !== "adequate")
+            .map((n) => n.id)}
+          supps={supps}
+          onToggleSupp={(id) => setSupps((s) => ({ ...s, [id]: !s[id] }))}
+          onRestart={() => {
+            setPhase("quiz");
+            window.scrollTo({ top: 0, behavior: "smooth" });
+          }}
+        />
       </div>
-    </div>
-  );
+    );
+  }
+
+  return <Quiz draft={draft} onChange={setDraft} onComplete={complete} />;
 }

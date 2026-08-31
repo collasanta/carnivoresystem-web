@@ -208,5 +208,52 @@ const bandOf = (r: ReturnType<typeof analyze>, id: string): Band =>
     heavy.flags.some((f) => f.id === "alcohol" && f.severity === "danger"));
 }
 
+// --- K: the Carnivore Score is stable, bounded and discriminates ------------
+{
+  const muscleOnly = analyze(base, [food("beef-ribeye", 500), food("beef-ground-8020", 400)]);
+  const full = analyze({ ...base, saltType: "iodized" }, [
+    food("beef-ribeye", 350),
+    food("chicken-liver", 30),
+    food("sardines", 100),
+    food("mussels", 60),
+    food("egg-yolk", 60),
+    food("hard-cheese", 40),
+    food("eggshell-powder", 1.5),
+    food("butter", 30),
+  ]);
+  check("K score within bounds", muscleOnly.score.value >= 0 && full.score.value <= 100);
+  check(
+    "K nose-to-tail outscores muscle-only",
+    full.score.value > muscleOnly.score.value + 10,
+    `${muscleOnly.score.value} vs ${full.score.value}`,
+  );
+  const again = analyze(base, [food("beef-ribeye", 500), food("beef-ground-8020", 400)]);
+  check("K score is deterministic", again.score.value === muscleOnly.score.value);
+}
+
+// --- L: the protocol is deterministic and sane ------------------------------
+{
+  const r = analyze(base, [food("beef-ribeye", 500), food("beef-ground-8020", 400)]);
+  check("L protocol exists and caps at 5", r.protocol.length > 0 && r.protocol.length <= 5);
+  check(
+    "L pink salt earns the iodised-salt swap",
+    r.protocol.some((p) => /iodised salt/i.test(p.action)),
+  );
+  check(
+    "L actions are unique",
+    new Set(r.protocol.map((p) => p.action)).size === r.protocol.length,
+  );
+  check("L surprise picked for muscle-only", r.surpriseId !== null, String(r.surpriseId));
+  const supp = analyze(base, [food("beef-ribeye", 500), food("beef-ground-8020", 400)], [
+    { nutrientId: "magnesium", label: "Mg", amountPerDay: 400, source: "" },
+    { nutrientId: "epaDha", label: "Fish oil", amountPerDay: 600, source: "" },
+  ]);
+  check(
+    "L supplements raise the score",
+    supp.score.value > r.score.value,
+    `${r.score.value} -> ${supp.score.value}`,
+  );
+}
+
 console.log(failures ? `\n${failures} failure(s)` : "\nall green");
 process.exit(failures ? 1 : 0);

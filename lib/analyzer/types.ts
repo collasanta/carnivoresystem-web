@@ -70,6 +70,8 @@ export interface Nutrient {
   evidenceHarm: Evidence;
   /** One line on why this nutrient behaves the way it does here. */
   why: string;
+  /** The concrete food correction, shown when the nutrient falls short. */
+  fix?: string;
 }
 
 export type Sex = "male" | "female";
@@ -100,7 +102,8 @@ export interface Profile {
    *  — exceptions are not the habitual diet, so they never enter the math. */
   offDays?: string;
   alcohol: AlcoholLevel;
-  dietText: string;
+  /** Optional now: the tap-based builder produces structured foods directly. */
+  dietText?: string;
 }
 
 /** One line item the model recognised in the user's description. */
@@ -160,6 +163,7 @@ export interface NutrientResult {
   band: Band;
   /** Set when the carnivore-adjusted target departs from the DRI. */
   targetNote?: string;
+  fix?: string;
   /** Which foods in the diet supplied this nutrient, largest first. */
   topSources: { label: string; amount: number }[];
   /**
@@ -203,6 +207,25 @@ export interface SymptomInsight {
   matchedCauses: string[];
 }
 
+export interface ProtocolStep {
+  action: string;
+  rationale: string;
+  covers: string[];
+}
+
+/**
+ * The 0–100 Carnivore Score. Explainable and stable: a weighted share of
+ * nutrient targets hit (weighted by clinical evidence, not by numeric gap
+ * size) blended with a structural component from the macro flags.
+ */
+export interface ScoreInfo {
+  value: number;
+  /** 0–1: evidence-weighted nutrient component. */
+  nutrients: number;
+  /** 0–1: macro/structure component. */
+  structure: number;
+}
+
 /** The deterministic output. Stage 3 writes prose about this and nothing else. */
 export interface Assessment {
   macros: MacroResult;
@@ -212,6 +235,10 @@ export interface Assessment {
   supplements: ParsedSupplement[];
   unquantifiedSupplements: UnquantifiedSupplement[];
   symptomInsights: SymptomInsight[];
+  score: ScoreInfo;
+  protocol: ProtocolStep[];
+  /** The most counter-intuitive deficiency — the teaser's one open card. */
+  surpriseId: NutrientId | null;
   redFlags: { symptom: string; urgency: "emergency" | "urgent"; reason: string }[];
 }
 
@@ -221,12 +248,6 @@ export interface NutrientNote {
   comment: string;
   sideEffects: string[];
   fix: string;
-}
-
-export interface ProtocolStep {
-  action: string;
-  rationale: string;
-  covers: string[];
 }
 
 export interface Narrative {

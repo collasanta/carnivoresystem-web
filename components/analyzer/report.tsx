@@ -3,7 +3,8 @@
 import { useState } from "react";
 import Link from "next/link";
 import { NUTRIENT_BY_ID } from "@/lib/analyzer/nutrients";
-import type { AnalysisReport, Band, NutrientResult } from "@/lib/analyzer/types";
+import { SUPPLEMENT_PRESETS } from "@/lib/analyzer/supplement-presets";
+import type { Assessment, Band, NutrientId, NutrientResult } from "@/lib/analyzer/types";
 import { cn } from "@/lib/utils";
 import { NutrientBar } from "./nutrient-bar";
 
@@ -25,13 +26,7 @@ function Stat({ label, value, tone }: { label: string; value: string; tone?: str
   );
 }
 
-function NutrientCard({
-  result,
-  note,
-}: {
-  result: NutrientResult;
-  note?: { comment: string; sideEffects: string[]; fix: string };
-}) {
+function NutrientCard({ result }: { result: NutrientResult }) {
   return (
     <li className="rounded-2xl border border-line bg-card p-4 shadow-[0_1px_2px_rgba(33,26,18,0.04)]">
       <div className="mb-2.5 flex items-baseline justify-between gap-3">
@@ -52,7 +47,7 @@ function NutrientCard({
         </p>
       )}
 
-      <p className="mt-3 text-[12.5px] leading-relaxed text-mute">{note?.comment ?? result.why}</p>
+      <p className="mt-3 text-[12.5px] leading-relaxed text-mute">{result.why}</p>
 
       {result.targetNote && (
         <p className="mt-2.5 rounded-xl bg-tint px-3 py-2.5 text-[11.5px] leading-relaxed text-mute">
@@ -60,28 +55,12 @@ function NutrientCard({
         </p>
       )}
 
-      {note?.sideEffects?.length ? (
-        <div className="mt-3">
-          <div className="text-[9.5px] font-semibold tracking-[0.14em] text-mute uppercase">
-            What this can show up as
-          </div>
-          <ul className="mt-1.5 flex flex-wrap gap-1.5">
-            {note.sideEffects.map((effect, index) => (
-              <li
-                key={`${effect}-${index}`}
-                className="rounded-full border border-line px-2.5 py-0.5 text-[11px] text-ink"
-              >
-                {effect}
-              </li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
-
-      {note?.fix && (
+      {result.fix && result.band !== "adequate" && (
         <div className="mt-3 border-t border-line pt-3">
-          <div className="text-[9.5px] font-bold tracking-[0.14em] text-walnut uppercase">Fix it with food</div>
-          <p className="mt-1 text-[12.5px] leading-relaxed font-medium text-ink">{note.fix}</p>
+          <div className="text-[9.5px] font-bold tracking-[0.14em] text-walnut uppercase">
+            Fix it with food
+          </div>
+          <p className="mt-1 text-[12.5px] leading-relaxed font-medium text-ink">{result.fix}</p>
         </div>
       )}
 
@@ -97,14 +76,97 @@ function NutrientCard({
   );
 }
 
-export function Report({ report, onRestart }: { report: AnalysisReport; onRestart: () => void }) {
-  const { assessment, narrative, degraded } = report;
-  const { macros, nutrients, flags, parsed, redFlags, symptomInsights } = assessment;
+/**
+ * The interactive supplement panel — the reason supplements left the quiz.
+ * The list is anchored to the BASE assessment (diet only), so rows never
+ * vanish when toggling one flips its nutrient green; flip a toggle and every
+ * bar, the score and the protocol recompute in front of you.
+ */
+function SupplementPanel({
+  baseGapIds,
+  supps,
+  onToggle,
+}: {
+  baseGapIds: NutrientId[];
+  supps: Partial<Record<NutrientId, boolean>>;
+  onToggle: (id: NutrientId) => void;
+}) {
+  const relevant = SUPPLEMENT_PRESETS.filter((p) => baseGapIds.includes(p.nutrientId));
+  if (!relevant.length) return null;
+
+  return (
+    <section
+      aria-label="Supplements you already take"
+      className="mt-5 rounded-2xl border border-walnut/40 bg-card p-4 shadow-[0_1px_3px_rgba(33,26,18,0.05)]"
+    >
+      <h2 className="text-[14px] font-extrabold tracking-[-0.01em]">Already supplementing?</h2>
+      <p className="mt-1 text-[12px] leading-relaxed text-mute">
+        Flip on what you take — every bar, the score and the protocol recalculate instantly.
+        Doses assume common label amounts.
+      </p>
+      <ul className="mt-3 grid gap-2 sm:grid-cols-2">
+        {relevant.map((preset) => {
+          const on = !!supps[preset.nutrientId];
+          return (
+            <li key={preset.nutrientId}>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={on}
+                onClick={() => onToggle(preset.nutrientId)}
+                className={cn(
+                  "flex w-full items-center gap-3 rounded-xl border px-3 py-2.5 text-left transition-[border-color,background-color] duration-150",
+                  "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cta",
+                  on ? "border-cta bg-tint" : "border-line bg-card hover:border-linex",
+                )}
+              >
+                <span
+                  aria-hidden="true"
+                  className={cn(
+                    "relative h-[22px] w-[38px] flex-none rounded-full transition-colors duration-150",
+                    on ? "bg-cta" : "bg-line",
+                  )}
+                >
+                  <span
+                    className={cn(
+                      "absolute top-[3px] size-[16px] rounded-full bg-card shadow transition-[left] duration-150",
+                      on ? "left-[19px]" : "left-[3px]",
+                    )}
+                  />
+                </span>
+                <span className="flex-1">
+                  <span className={cn("block text-[12.5px] text-ink", on && "font-bold")}>
+                    {preset.label}
+                  </span>
+                  <span className="block text-[10.5px] text-mute">{preset.detail}</span>
+                </span>
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+  );
+}
+
+export function Report({
+  assessment,
+  baseGapIds,
+  supps,
+  onToggleSupp,
+  onRestart,
+}: {
+  assessment: Assessment;
+  baseGapIds: NutrientId[];
+  supps: Partial<Record<NutrientId, boolean>>;
+  onToggleSupp: (id: NutrientId) => void;
+  onRestart: () => void;
+}) {
+  const { macros, nutrients, flags, parsed, redFlags, symptomInsights, score, protocol } =
+    assessment;
   const supplements = assessment.supplements ?? [];
-  const unquantified = assessment.unquantifiedSupplements ?? [];
   const [copied, setCopied] = useState(false);
 
-  const noteById = new Map((narrative?.notes ?? []).map((n) => [n.id, n]));
   const counts = nutrients.reduce<Record<Band, number>>(
     (acc, n) => ({ ...acc, [n.band]: (acc[n.band] ?? 0) + 1 }),
     {} as Record<Band, number>,
@@ -112,14 +174,14 @@ export function Report({ report, onRestart }: { report: AnalysisReport; onRestar
 
   const attention = nutrients.filter((n) => n.band !== "adequate");
   const onTarget = nutrients.filter((n) => n.band === "adequate");
-  const protocol = narrative?.protocol ?? [];
   const insights = (symptomInsights ?? []).filter(Boolean);
+  const scoreTone = score.value >= 75 ? "text-good" : score.value >= 50 ? "text-warn" : "text-bad";
 
   async function copyProtocol() {
     const lines = [
-      "CARNIVORE DIET ANALYZER — my protocol",
-      ...(narrative?.headline ? ["", narrative.headline] : []),
+      `CARNIVORE SCORE: ${score.value}/100`,
       "",
+      "My protocol:",
       ...protocol.map((step, i) => `${i + 1}. ${step.action}`),
       "",
       "thecarnivoresystem.com/analyzer",
@@ -134,9 +196,8 @@ export function Report({ report, onRestart }: { report: AnalysisReport; onRestar
   }
 
   return (
-    <div>
-      {/* Hard-coded and rendered before anything else. Nothing the model wrote
-          can soften or displace this block. */}
+    <div className="animate-in fade-in duration-300">
+      {/* Hard-coded and rendered before anything else. */}
       {redFlags.length > 0 && (
         <section
           aria-label="Seek medical attention"
@@ -167,43 +228,33 @@ export function Report({ report, onRestart }: { report: AnalysisReport; onRestar
         </section>
       )}
 
-      {degraded && (
-        <p className="mb-6 rounded-2xl border border-warn/50 bg-warn/[0.07] px-4 py-3 text-[12.5px] leading-relaxed text-ink">
-          {degraded}
-        </p>
-      )}
-
-      {narrative?.summary && (
-        <p className="text-[13.5px] leading-relaxed text-mute">{narrative.summary}</p>
-      )}
-
-      {/* The share card. The answer, complete and screenshot-sized: headline,
-          score, protocol, and where it came from. Everything below it is the
-          supporting argument. */}
+      {/* The share card: score, counts, protocol, provenance. */}
       <section
         aria-label="Your result"
-        className="mt-5 rounded-3xl border border-line bg-card p-5 shadow-[0_6px_24px_rgba(33,26,18,0.07)] sm:p-6"
+        className="rounded-3xl border border-line bg-card p-5 shadow-[0_6px_24px_rgba(33,26,18,0.07)] sm:p-6"
       >
         <div className="flex items-center justify-between gap-3 text-[9.5px] font-bold tracking-[0.18em] uppercase">
           <span className="text-mute">The Carnivore System</span>
           <span className="text-walnut">Diet Analyzer</span>
         </div>
 
-        {narrative?.headline && (
-          <h1 className="mt-3.5 text-[clamp(19px,5vw,24px)] leading-[1.2] font-extrabold tracking-[-0.02em] text-balance">
-            {narrative.headline}
-          </h1>
-        )}
-
-        <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
-          <Stat label="Deficient" value={String(counts.deficient ?? 0)} tone="text-bad" />
-          <Stat label="Low" value={String(counts.low ?? 0)} tone="text-warn" />
-          <Stat
-            label="Over limit"
-            value={String((counts.excess ?? 0) + (counts.high ?? 0))}
-            tone="text-warn"
-          />
-          <Stat label="On target" value={String(counts.adequate ?? 0)} tone="text-good" />
+        <div className="mt-4 flex items-center justify-between gap-4">
+          <div>
+            <div className="text-[9.5px] font-bold tracking-[0.16em] text-mute uppercase">
+              Carnivore Score
+            </div>
+            <div className="mt-1 flex items-baseline gap-1.5">
+              <span className={cn("text-[44px] leading-none font-extrabold tracking-[-0.03em]", scoreTone)}>
+                {score.value}
+              </span>
+              <span className="text-[15px] font-bold text-faint">/100</span>
+            </div>
+          </div>
+          <div className="grid flex-1 grid-cols-3 gap-2">
+            <Stat label="Deficient" value={String(counts.deficient ?? 0)} tone="text-bad" />
+            <Stat label="Over" value={String((counts.excess ?? 0) + (counts.high ?? 0))} tone="text-warn" />
+            <Stat label="On target" value={String(counts.adequate ?? 0)} tone="text-good" />
+          </div>
         </div>
 
         {protocol.length > 0 && (
@@ -232,9 +283,7 @@ export function Report({ report, onRestart }: { report: AnalysisReport; onRestar
       </section>
 
       <div className="mt-2.5 flex items-center justify-between gap-3">
-        <p className="text-[10.5px] text-faint">
-          Screenshot the card above to share it.
-        </p>
+        <p className="text-[10.5px] text-faint">Screenshot the card above to share it.</p>
         {protocol.length > 0 && (
           <button
             type="button"
@@ -246,64 +295,38 @@ export function Report({ report, onRestart }: { report: AnalysisReport; onRestar
         )}
       </div>
 
-      {/* If the parse is wrong, everything is wrong — so it is offered for
-          inspection right here, before the argument, not after it. */}
+      <SupplementPanel baseGapIds={baseGapIds} supps={supps} onToggle={onToggleSupp} />
+
+      {/* If the picks are wrong, everything is wrong — inspectable up front. */}
       <details className="mt-5 overflow-hidden rounded-2xl border border-line bg-card shadow-[0_1px_2px_rgba(33,26,18,0.04)]">
         <summary className="cursor-pointer px-4 py-3.5 text-[12px] font-bold text-ink hover:text-walnut">
-          What we read from your description — check this first
+          What we counted — check this first
         </summary>
         <div className="px-4 pb-4">
           <ul className="flex flex-wrap gap-1.5">
             {parsed.map((food, index) => (
               <li
                 key={`${food.slug}-${index}`}
-                className={cn(
-                  "rounded-full border px-2.5 py-1 text-[11px]",
-                  food.unmatched ? "border-warn font-medium text-warn" : "border-line text-ink",
-                )}
+                className="rounded-full border border-line px-2.5 py-1 text-[11px] text-ink"
               >
                 {food.label} &middot; {Math.round(food.gramsPerDay)}g/day
+                {food.source.includes("week") ? ` (${food.source})` : ""}
+              </li>
+            ))}
+            {supplements.map((s, index) => (
+              <li
+                key={`${s.nutrientId}-${index}`}
+                className="rounded-full border border-walnut/40 px-2.5 py-1 text-[11px] text-ink"
+              >
+                {s.label} &middot; {s.amountPerDay}
+                {NUTRIENT_BY_ID[s.nutrientId].unit === "IU" ? " IU" : NUTRIENT_BY_ID[s.nutrientId].unit}
+                /day
               </li>
             ))}
           </ul>
-          {(supplements.length > 0 || unquantified.length > 0) && (
-            <>
-              <div className="mt-3 text-[9.5px] font-semibold tracking-[0.14em] text-mute uppercase">
-                Supplements
-              </div>
-              <ul className="mt-1.5 flex flex-wrap gap-1.5">
-                {supplements.map((s, index) => (
-                  <li
-                    key={`${s.nutrientId}-${index}`}
-                    className="rounded-full border border-walnut/40 px-2.5 py-1 text-[11px] text-ink"
-                  >
-                    {s.label} &middot; {s.amountPerDay}
-                    {NUTRIENT_BY_ID[s.nutrientId].unit === "IU"
-                      ? " IU"
-                      : NUTRIENT_BY_ID[s.nutrientId].unit}
-                    /day{s.estimated ? " (est.)" : ""}
-                  </li>
-                ))}
-                {unquantified.map((u, index) => (
-                  <li
-                    key={`${u.label}-${index}`}
-                    className="rounded-full border border-warn px-2.5 py-1 text-[11px] font-medium text-warn"
-                    title={u.reason}
-                  >
-                    {u.label} &middot; not counted
-                  </li>
-                ))}
-              </ul>
-              <p className="mt-2 text-[11.5px] leading-relaxed text-mute">
-                Counted supplements are already inside every bar below. Anything marked
-                &ldquo;not counted&rdquo; has no stated amounts, so it isn&rsquo;t.
-              </p>
-            </>
-          )}
           <p className="mt-2.5 text-[11.5px] leading-relaxed text-mute">
-            Weekly foods are averaged across seven days, so liver once a fortnight shows up as a
-            small daily number. If anything here is wrong, every number below is wrong with it
-            &mdash;{" "}
+            Weekly foods are averaged across seven days, so liver twice a week shows as a small
+            daily number. If anything here is wrong,{" "}
             <button
               type="button"
               onClick={onRestart}
@@ -311,24 +334,12 @@ export function Report({ report, onRestart }: { report: AnalysisReport; onRestar
             >
               edit your answers and run it again
             </button>
-            . Your answers are kept on this device.
+            . Your answers are kept on this device only.
           </p>
         </div>
       </details>
 
-      {(narrative?.symptomLinks?.length ?? 0) > 0 ? (
-        <>
-          <SectionTitle>What you reported, against what we measured</SectionTitle>
-          <ul className="flex flex-col gap-3">
-            {narrative!.symptomLinks.map((link, index) => (
-              <li key={`${link.symptom}-${index}`} className="rounded-2xl border border-line bg-card p-4 shadow-[0_1px_2px_rgba(33,26,18,0.04)]">
-                <h3 className="text-[13.5px] font-bold tracking-[-0.01em]">{link.symptom}</h3>
-                <p className="mt-1.5 text-[12.5px] leading-relaxed text-mute">{link.explanation}</p>
-              </li>
-            ))}
-          </ul>
-        </>
-      ) : insights.length > 0 ? (
+      {insights.length > 0 && (
         <>
           <SectionTitle>What you reported, against what we measured</SectionTitle>
           <ul className="flex flex-col gap-3">
@@ -352,7 +363,7 @@ export function Report({ report, onRestart }: { report: AnalysisReport; onRestar
             ))}
           </ul>
         </>
-      ) : null}
+      )}
 
       <SectionTitle>Energy and macros</SectionTitle>
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -403,7 +414,7 @@ export function Report({ report, onRestart }: { report: AnalysisReport; onRestar
       <SectionTitle count={attention.length}>Needs attention</SectionTitle>
       <ul className="flex flex-col gap-3">
         {attention.map((result) => (
-          <NutrientCard key={result.id} result={result} note={noteById.get(result.id)} />
+          <NutrientCard key={result.id} result={result} />
         ))}
       </ul>
 
@@ -437,10 +448,10 @@ export function Report({ report, onRestart }: { report: AnalysisReport; onRestar
       >
         <span className="flex-1">
           <span className="block text-[15px] font-bold tracking-[-0.01em] text-ink">
-            Track it daily
+            Your score changes every time your diet does
           </span>
           <span className="mt-0.5 block text-[12px] text-mute">
-            Carnivore System App &middot; iOS macro tracker &middot; join the waitlist
+            The Carnivore System App tracks it daily &middot; iOS &middot; join the waitlist
           </span>
         </span>
         <span className="flex-none rounded-full border border-cta bg-cta px-3 py-1 text-[10px] font-bold tracking-[0.08em] text-card uppercase">

@@ -2,19 +2,22 @@
 
 import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
+import { DAILY_FATS, DAILY_MEATS, WEEKLY_FOODS, type DailyFood, type WeeklyFood } from "@/lib/analyzer/builder-foods";
 import { RED_FLAGS } from "@/lib/analyzer/redflags";
 import { SYMPTOMS } from "@/lib/analyzer/symptoms";
 import type { Activity, AlcoholLevel, Goal, SaltType, Sex, Tenure } from "@/lib/analyzer/types";
 import { cn } from "@/lib/utils";
 
 /**
- * One question per screen, quiz-funnel style: single choices auto-advance,
- * multi-selects and inputs gate a pinned CTA, sections fill a segmented
- * progress bar. The structure borrows from the best-converting quiz funnels;
- * the skin stays butcher paper.
+ * The paid-funnel quiz: pain first, zero typing, one question per screen.
  *
- * The draft still lives in the PARENT and persists to localStorage there, so a
- * refresh or an "edit and re-run" keeps every answer.
+ * The free-text diet description is gone — food intake is three screens of
+ * tap-and-step, drawn from the same composition table the engine reads. That
+ * removes the model from the critical path entirely: parsing is exact, results
+ * are instant, and the marginal cost of an analysis is zero.
+ *
+ * Supplements are deliberately NOT asked here. They live as toggles on the
+ * result page, where flipping one recomputes the bars in front of you.
  */
 export interface Draft {
   sex: Sex;
@@ -29,14 +32,12 @@ export interface Draft {
   tenure: Tenure;
   saltType: SaltType;
   saltGrams: string;
-  dietText: string;
   symptoms: string[];
-  otherSymptoms: string;
-  takesSupplements: "yes" | "no";
-  supplements: string;
-  hadOffDays: "yes" | "no";
-  offDays: string;
   alcohol: AlcoholLevel;
+  /** slug -> grams per day. */
+  daily: Record<string, number>;
+  /** slug -> times per week (portion fixed per food). */
+  weekly: Record<string, number>;
 }
 
 export const EMPTY_DRAFT: Draft = {
@@ -52,17 +53,13 @@ export const EMPTY_DRAFT: Draft = {
   tenure: "1to3m",
   saltType: "unknown",
   saltGrams: "6",
-  dietText: "",
   symptoms: [],
-  otherSymptoms: "",
-  takesSupplements: "no",
-  supplements: "",
-  hadOffDays: "no",
-  offDays: "",
   alcohol: "none",
+  daily: {},
+  weekly: {},
 };
 
-const SECTIONS = ["Body", "Context", "Your food", "Symptoms", "Lifestyle"] as const;
+const SECTIONS = ["Start", "Symptoms", "Body", "Salt", "Your food"] as const;
 
 interface Screen {
   id: string;
@@ -72,28 +69,35 @@ interface Screen {
 
 const SCREENS: Screen[] = [
   { id: "sex", section: 0 },
-  { id: "age", section: 0 },
-  { id: "height", section: 0 },
-  { id: "weight", section: 0 },
-  { id: "activity", section: 1 },
-  { id: "goal", section: 1 },
-  { id: "tenure", section: 1 },
-  { id: "salt-type", section: 1 },
-  { id: "salt-amount", section: 1 },
-  { id: "trust", section: 2 },
-  { id: "diet", section: 2 },
-  { id: "symptoms", section: 3 },
-  { id: "redflags", section: 3 },
-  { id: "supp-gate", section: 4 },
-  { id: "supp-text", section: 4, skip: (d) => d.takesSupplements !== "yes" },
-  { id: "offdays-gate", section: 4 },
-  { id: "offdays-text", section: 4, skip: (d) => d.hadOffDays !== "yes" },
+  { id: "tenure", section: 0 },
+  { id: "symptoms", section: 1 },
+  { id: "redflags", section: 1 },
+  { id: "goal", section: 2 },
+  { id: "age", section: 2 },
+  { id: "height", section: 2 },
+  { id: "weight", section: 2 },
+  { id: "activity", section: 2 },
+  { id: "salt-type", section: 3 },
+  { id: "salt-amount", section: 3 },
+  { id: "food-meats", section: 4 },
+  { id: "food-fats", section: 4 },
+  { id: "food-weekly", section: 4 },
   { id: "alcohol-gate", section: 4 },
   { id: "alcohol-amount", section: 4, skip: (d) => d.alcohol === "none" },
-  { id: "review", section: 4 },
 ];
 
-/** Thin-stroke line icons in the wellness-app idiom, hand-drawn to match. */
+const num = (value: string): number | null => {
+  const n = Number.parseFloat(value.replace(",", "."));
+  return Number.isFinite(n) ? n : null;
+};
+
+const inRange = (value: string, min: number, max: number): boolean => {
+  const n = num(value);
+  return n !== null && n >= min && n <= max;
+};
+
+/* ---------------------------------------------------------------- icons -- */
+
 function Ic({ children }: { children: React.ReactNode }) {
   return (
     <svg
@@ -127,23 +131,8 @@ const ICON = {
   wave: <Ic><path d="M3 11.5c2-2.8 4-2.8 6 0s4 2.8 6 0 4-2.8 6 0" /><path d="M3 16.5c2-2.8 4-2.8 6 0s4 2.8 6 0 4-2.8 6 0" /></Ic>,
   shaker: <Ic><path d="M9.2 9.5h5.6l1 10.5H8.2z" /><path d="M9.7 7a2.3 2.3 0 0 1 4.6 0v2.5H9.7z" /><path d="M11 13.5h.01M13.2 15.5h.01M11.5 17.5h.01" /></Ic>,
   question: <Ic><circle cx="12" cy="12" r="8" /><path d="M9.8 9.6a2.2 2.2 0 1 1 3.5 1.8c-.8.6-1.3 1-1.3 2" /><path d="M12 16.6h.01" /></Ic>,
-  capsule: <Ic><rect x="4.5" y="9" width="15" height="6" rx="3" /><path d="M12 9v6" /></Ic>,
   ban: <Ic><circle cx="12" cy="12" r="8" /><path d="M6.6 6.6l10.8 10.8" /></Ic>,
-  pizza: <Ic><path d="M4.5 5.5c4.8-1.9 10.2-1.9 15 0L12 20z" /><path d="M9.4 9h.01M14.2 8.4h.01M11.9 12.8h.01" /></Ic>,
-  shield: <Ic><path d="M12 3.5l7 2.8v4.9c0 4.8-3.4 7.8-7 9.8-3.6-2-7-5-7-9.8V6.3z" /><path d="M9.4 12l1.9 1.9 3.4-3.9" /></Ic>,
   glass: <Ic><path d="M8 3.5h8l-.7 5.3A3.6 3.6 0 0 1 12 12a3.6 3.6 0 0 1-3.3-3.2z" /><path d="M12 12v7.5M9 20.5h6" /></Ic>,
-};
-
-const EXAMPLE = `Two meals a day. 500g ribeye for lunch, 400g of ground beef with three eggs for dinner. Butter on most things. Beef liver maybe once a fortnight. No fish. Coffee in the morning.`;
-
-const num = (value: string): number | null => {
-  const n = Number.parseFloat(value.replace(",", "."));
-  return Number.isFinite(n) ? n : null;
-};
-
-const inRange = (value: string, min: number, max: number): boolean => {
-  const n = num(value);
-  return n !== null && n >= min && n <= max;
 };
 
 /* ---------------------------------------------------------------- pieces -- */
@@ -159,7 +148,6 @@ function QuestionTitle({ children, sub }: { children: React.ReactNode; sub?: str
   );
 }
 
-/** A full-width answer card with a stamp-style indicator square. */
 function OptionCard({
   selected,
   onClick,
@@ -291,23 +279,163 @@ function UnitPill<T extends string>({
   );
 }
 
-const textAreaClass =
-  "w-full min-w-0 resize-y rounded-2xl border border-line bg-card px-4 py-3.5 text-[13.5px] leading-relaxed text-ink shadow-[0_1px_2px_rgba(33,26,18,0.04)] placeholder:text-faint focus:border-cta focus:outline-2 focus:outline-offset-2 focus:outline-cta";
+function Stepper({
+  value,
+  onChange,
+  step,
+  min,
+  max,
+  suffix,
+}: {
+  value: number;
+  onChange: (value: number) => void;
+  step: number;
+  min: number;
+  max: number;
+  suffix: string;
+}) {
+  const bump = (delta: number) => onChange(Math.max(min, Math.min(max, value + delta)));
+  return (
+    <span className="flex flex-none items-center gap-1.5">
+      <button
+        type="button"
+        aria-label="Less"
+        onClick={(e) => {
+          e.stopPropagation();
+          bump(-step);
+        }}
+        className="flex size-8 items-center justify-center rounded-full border border-line bg-card text-[16px] font-bold text-ink transition-transform duration-100 active:scale-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cta"
+      >
+        &minus;
+      </button>
+      <span className="w-[64px] text-center text-[12.5px] font-bold tracking-[-0.01em] text-ink tabular-nums">
+        {value}
+        {suffix}
+      </span>
+      <button
+        type="button"
+        aria-label="More"
+        onClick={(e) => {
+          e.stopPropagation();
+          bump(step);
+        }}
+        className="flex size-8 items-center justify-center rounded-full border border-line bg-card text-[15px] font-bold text-ink transition-transform duration-100 active:scale-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cta"
+      >
+        +
+      </button>
+    </span>
+  );
+}
+
+/** One tappable food row: tap to add at the default, step to adjust, − past the minimum removes. */
+function DailyFoodRow({
+  food,
+  grams,
+  onChange,
+}: {
+  food: DailyFood;
+  grams: number | undefined;
+  onChange: (grams: number | undefined) => void;
+}) {
+  const selected = grams !== undefined;
+  return (
+    <div
+      role="checkbox"
+      aria-checked={selected}
+      tabIndex={0}
+      onClick={() => !selected && onChange(food.defaultGrams)}
+      onKeyDown={(e) => e.key === "Enter" && !selected && onChange(food.defaultGrams)}
+      className={cn(
+        "flex w-full cursor-pointer items-center gap-3 rounded-2xl border bg-card py-3 pr-3 pl-4 text-left shadow-[0_1px_2px_rgba(33,26,18,0.04)] transition-[border-color,box-shadow] duration-150",
+        selected ? "border-cta shadow-[0_0_0_1px_var(--color-cta)]" : "border-line hover:border-linex",
+      )}
+    >
+      <span className="flex-1">
+        <span className={cn("block text-[13.5px] leading-snug text-ink", selected && "font-bold")}>
+          {food.label}
+        </span>
+        {food.hint && <span className="mt-0.5 block text-[10.5px] text-mute">{food.hint}</span>}
+      </span>
+      {selected ? (
+        <Stepper
+          value={grams}
+          onChange={(v) => onChange(v < food.step ? undefined : v)}
+          step={food.step}
+          min={0}
+          max={food.max}
+          suffix="g"
+        />
+      ) : (
+        <span
+          aria-hidden="true"
+          className="flex size-8 flex-none items-center justify-center rounded-full border border-faint text-[15px] font-bold text-mute"
+        >
+          +
+        </span>
+      )}
+    </div>
+  );
+}
+
+function WeeklyFoodRow({
+  food,
+  times,
+  onChange,
+}: {
+  food: WeeklyFood;
+  times: number | undefined;
+  onChange: (times: number | undefined) => void;
+}) {
+  const selected = times !== undefined && times > 0;
+  return (
+    <div
+      role="checkbox"
+      aria-checked={selected}
+      tabIndex={0}
+      onClick={() => !selected && onChange(1)}
+      onKeyDown={(e) => e.key === "Enter" && !selected && onChange(1)}
+      className={cn(
+        "flex w-full cursor-pointer items-center gap-3 rounded-2xl border bg-card py-3 pr-3 pl-4 text-left shadow-[0_1px_2px_rgba(33,26,18,0.04)] transition-[border-color,box-shadow] duration-150",
+        selected ? "border-cta shadow-[0_0_0_1px_var(--color-cta)]" : "border-line hover:border-linex",
+      )}
+    >
+      <span className="flex-1">
+        <span className={cn("block text-[13.5px] leading-snug text-ink", selected && "font-bold")}>
+          {food.label}
+        </span>
+        <span className="mt-0.5 block text-[10.5px] text-mute">{food.portionGrams}g portion</span>
+      </span>
+      {selected ? (
+        <Stepper
+          value={times}
+          onChange={(v) => onChange(v < 1 ? undefined : v)}
+          step={1}
+          min={0}
+          max={7}
+          suffix="×/wk"
+        />
+      ) : (
+        <span
+          aria-hidden="true"
+          className="flex size-8 flex-none items-center justify-center rounded-full border border-faint text-[15px] font-bold text-mute"
+        >
+          +
+        </span>
+      )}
+    </div>
+  );
+}
 
 /* ------------------------------------------------------------------ quiz -- */
 
 export function Quiz({
   draft,
   onChange,
-  onSubmit,
-  pending,
-  error,
+  onComplete,
 }: {
   draft: Draft;
   onChange: (draft: Draft) => void;
-  onSubmit: () => void;
-  pending: boolean;
-  error?: string;
+  onComplete: (draft: Draft) => void;
 }) {
   const [index, setIndex] = useState(0);
   const topRef = useRef<HTMLDivElement>(null);
@@ -330,11 +458,14 @@ export function Quiz({
   const set = <K extends keyof Draft>(key: K, value: Draft[K]) =>
     onChange({ ...draft, [key]: value });
 
-  /** Next non-skipped screen, judged against a draft that may be newer than the prop. */
   function forward(from: number, current: Draft) {
     let next = from + 1;
     while (next < SCREENS.length && SCREENS[next].skip?.(current)) next += 1;
-    setIndex(Math.min(next, SCREENS.length - 1));
+    if (next >= SCREENS.length) {
+      onComplete(current);
+      return;
+    }
+    setIndex(next);
   }
 
   function back() {
@@ -343,7 +474,6 @@ export function Quiz({
     setIndex(Math.max(previous, 0));
   }
 
-  /** Single-choice select: paint the selection, then advance on a short beat. */
   function choose<K extends keyof Draft>(key: K, value: Draft[K]) {
     const updated = { ...draft, [key]: value };
     onChange(updated);
@@ -360,11 +490,24 @@ export function Quiz({
     });
   }
 
-  /** "None of these" for a group: clear that group's picks and move on. */
   function clearGroupAndAdvance(ids: string[]) {
     const updated = { ...draft, symptoms: draft.symptoms.filter((s) => !ids.includes(s)) };
     onChange(updated);
     forward(index, updated);
+  }
+
+  function setDaily(slug: string, grams: number | undefined) {
+    const daily = { ...draft.daily };
+    if (grams === undefined) delete daily[slug];
+    else daily[slug] = grams;
+    onChange({ ...draft, daily });
+  }
+
+  function setWeekly(slug: string, times: number | undefined) {
+    const weekly = { ...draft.weekly };
+    if (times === undefined) delete weekly[slug];
+    else weekly[slug] = times;
+    onChange({ ...draft, weekly });
   }
 
   const metric = draft.units === "metric";
@@ -399,31 +542,28 @@ export function Quiz({
     onChange(d);
   }
 
-  /* ---- validation per screen, gating the CTA -------------------------- */
   const heightValid = metric
     ? inRange(draft.heightCm, 120, 230)
     : inRange(draft.heightFt, 3, 7) &&
       (draft.heightIn === "" || inRange(draft.heightIn, 0, 11));
   const weightValid = metric ? inRange(draft.weight, 35, 300) : inRange(draft.weight, 77, 660);
-  const dietReady = draft.dietText.trim().length >= 10;
 
   const ctaState: Record<string, boolean> = {
     age: inRange(draft.age, 16, 100),
     height: heightValid,
     weight: weightValid,
     "salt-amount": inRange(draft.saltGrams, 0, 60),
-    trust: true,
-    diet: dietReady,
     symptoms: draft.symptoms.some((s) => SYMPTOMS.some((y) => y.id === s)),
     redflags: draft.symptoms.some((s) => RED_FLAGS.some((f) => f.id === s)),
-    "supp-text": true,
-    "offdays-text": true,
-    review: dietReady,
+    "food-meats": Object.keys(draft.daily).some((slug) =>
+      DAILY_MEATS.some((f) => f.slug === slug),
+    ),
+    "food-fats": true,
+    "food-weekly": true,
   };
   const needsCta = screen.id in ctaState;
   const ctaEnabled = ctaState[screen.id];
 
-  /* ---- progress -------------------------------------------------------- */
   const visible = SCREENS.filter((s) => !s.skip?.(draft));
   const visibleIndex = visible.findIndex((s) => s.id === screen.id);
   const sectionFill = SECTIONS.map((_, sectionIndex) => {
@@ -436,50 +576,14 @@ export function Quiz({
   const symptomIds = SYMPTOMS.map((s) => s.id);
   const redFlagIds = RED_FLAGS.map((f) => f.id);
 
-  const recap: { label: string; value: string }[] = [
-    {
-      label: "Body",
-      value: `${draft.sex === "male" ? "Male" : "Female"} · ${draft.age || "?"}y · ${
-        metric
-          ? `${draft.heightCm || "?"}cm · ${draft.weight || "?"}kg`
-          : `${draft.heightFt || "?"}'${draft.heightIn || 0}" · ${draft.weight || "?"}lb`
-      }`,
-    },
-    {
-      label: "Carnivore for",
-      value: { under1m: "Under a month", "1to3m": "1–3 months", "3to12m": "3–12 months", over1y: "Over a year" }[draft.tenure],
-    },
-    {
-      label: "Salt",
-      value: `${draft.saltGrams || "?"}g/day · ${
-        { iodized: "iodised", pink: "pink", sea: "sea", none: "none", unknown: "unspecified" }[draft.saltType]
-      }`,
-    },
-    { label: "Symptoms", value: String(draft.symptoms.length) || "0" },
-    {
-      label: "Supplements",
-      value: draft.takesSupplements === "yes" ? "Yes" : "No",
-    },
-    {
-      label: "Alcohol",
-      value: {
-        none: "None",
-        occasional: "A few a month",
-        weekly: "A few a week",
-        daily: "1–2 most days",
-        heavy: "3+ most days",
-      }[draft.alcohol],
-    },
-  ];
-
   return (
     <div ref={topRef}>
-      {/* ---- header: back · section · progress -------------------------- */}
+      {/* ---- back · section · progress ---------------------------------- */}
       <div className="mb-2 flex items-center justify-between gap-3">
         <button
           type="button"
           onClick={back}
-          disabled={index === 0 || pending}
+          disabled={index === 0}
           aria-label="Back"
           className="flex size-9 flex-none items-center justify-center rounded-full border border-line bg-card text-ink shadow-[0_1px_2px_rgba(33,26,18,0.04)] transition-colors duration-150 hover:border-linex focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cta disabled:invisible"
         >
@@ -500,7 +604,7 @@ export function Quiz({
         ))}
       </div>
 
-      {/* ---- screen ------------------------------------------------------ */}
+      {/* ---- screens ----------------------------------------------------- */}
       <div key={screen.id} className="animate-in fade-in slide-in-from-bottom-2 duration-300">
         {screen.id === "sex" && (
           <div className="text-center">
@@ -554,6 +658,102 @@ export function Quiz({
               how iron is scored: accumulation risk for men, shortfall risk while menstruating.
             </p>
           </div>
+        )}
+
+        {screen.id === "tenure" && (
+          <>
+            <QuestionTitle sub="Deficiencies arrive on different clocks — electrolytes bite in the first week, folate takes three months, calcium is measured in years.">
+              How long have you been carnivore?
+            </QuestionTitle>
+            <div className="flex flex-col gap-2.5">
+              {(
+                [
+                  ["under1m", "Under a month", ICON.clock],
+                  ["1to3m", "1–3 months", ICON.calendar],
+                  ["3to12m", "3–12 months", ICON.chart],
+                  ["over1y", "Over a year", ICON.medal],
+                ] as [Tenure, string, React.ReactNode][]
+              ).map(([value, label, icon]) => (
+                <OptionCard key={value} selected={draft.tenure === value} onClick={() => choose("tenure", value)} icon={icon}>
+                  {label}
+                </OptionCard>
+              ))}
+            </div>
+          </>
+        )}
+
+        {screen.id === "symptoms" && (
+          <>
+            <QuestionTitle sub="Choose all that apply. Where one lines up with what the numbers flag, the report says so — and where it doesn’t, it says that too.">
+              Have you been feeling any of these?
+            </QuestionTitle>
+            <div className="flex flex-col gap-2">
+              {SYMPTOMS.map((symptom) => (
+                <OptionCard
+                  key={symptom.id}
+                  multi
+                  selected={draft.symptoms.includes(symptom.id)}
+                  onClick={() => toggleSymptom(symptom.id)}
+                >
+                  {symptom.label}
+                </OptionCard>
+              ))}
+              <button
+                type="button"
+                onClick={() => clearGroupAndAdvance(symptomIds)}
+                className="mt-1 flex w-full items-center justify-center rounded-2xl border border-dashed border-faint bg-card py-4 text-[13px] font-bold text-mute transition-colors duration-150 hover:border-cta hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cta"
+              >
+                None of these
+              </button>
+            </div>
+          </>
+        )}
+
+        {screen.id === "redflags" && (
+          <>
+            <QuestionTitle sub="These are not diet problems. Tick one and the report will say so at the top instead of offering a nutrient to chase.">
+              Any of these, right now?
+            </QuestionTitle>
+            <div className="flex flex-col gap-2">
+              {RED_FLAGS.map((flag) => (
+                <OptionCard
+                  key={flag.id}
+                  multi
+                  tone="danger"
+                  selected={draft.symptoms.includes(flag.id)}
+                  onClick={() => toggleSymptom(flag.id)}
+                >
+                  {flag.label}
+                </OptionCard>
+              ))}
+              <button
+                type="button"
+                onClick={() => clearGroupAndAdvance(redFlagIds)}
+                className="mt-1 flex w-full items-center justify-center rounded-2xl border border-dashed border-faint bg-card py-4 text-[13px] font-bold text-mute transition-colors duration-150 hover:border-cta hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cta"
+              >
+                No — none of these
+              </button>
+            </div>
+          </>
+        )}
+
+        {screen.id === "goal" && (
+          <>
+            <QuestionTitle>What&rsquo;s your main goal?</QuestionTitle>
+            <div className="flex flex-col gap-2.5">
+              {(
+                [
+                  ["lose", "Lose fat", ICON.flame],
+                  ["maintain", "Maintain and feel good", ICON.heart],
+                  ["gain", "Build muscle", ICON.trophy],
+                ] as [Goal, string, React.ReactNode][]
+              ).map(([value, label, icon]) => (
+                <OptionCard key={value} selected={draft.goal === value} onClick={() => choose("goal", value)} icon={icon}>
+                  {label}
+                </OptionCard>
+              ))}
+            </div>
+          </>
         )}
 
         {screen.id === "age" && (
@@ -653,47 +853,6 @@ export function Quiz({
           </>
         )}
 
-        {screen.id === "goal" && (
-          <>
-            <QuestionTitle>What&rsquo;s your main goal?</QuestionTitle>
-            <div className="flex flex-col gap-2.5">
-              {(
-                [
-                  ["lose", "Lose fat", ICON.flame],
-                  ["maintain", "Maintain and feel good", ICON.heart],
-                  ["gain", "Build muscle", ICON.trophy],
-                ] as [Goal, string, React.ReactNode][]
-              ).map(([value, label, icon]) => (
-                <OptionCard key={value} selected={draft.goal === value} onClick={() => choose("goal", value)} icon={icon}>
-                  {label}
-                </OptionCard>
-              ))}
-            </div>
-          </>
-        )}
-
-        {screen.id === "tenure" && (
-          <>
-            <QuestionTitle sub="Deficiencies arrive on different clocks — electrolytes bite in the first week, folate takes three months, calcium is measured in years.">
-              How long have you been carnivore?
-            </QuestionTitle>
-            <div className="flex flex-col gap-2.5">
-              {(
-                [
-                  ["under1m", "Under a month", ICON.clock],
-                  ["1to3m", "1–3 months", ICON.calendar],
-                  ["3to12m", "3–12 months", ICON.chart],
-                  ["over1y", "Over a year", ICON.medal],
-                ] as [Tenure, string, React.ReactNode][]
-              ).map(([value, label, icon]) => (
-                <OptionCard key={value} selected={draft.tenure === value} onClick={() => choose("tenure", value)} icon={icon}>
-                  {label}
-                </OptionCard>
-              ))}
-            </div>
-          </>
-        )}
-
         {screen.id === "salt-type" && (
           <>
             <QuestionTitle sub="The highest-leverage question in this quiz. Iodised salt averages 52mcg of iodine per gram; non-iodised sea salt averages 0.015.">
@@ -734,173 +893,65 @@ export function Quiz({
           </>
         )}
 
-        {screen.id === "trust" && (
-          <div className="text-center">
-            <QuestionTitle>Your numbers are computed, not guessed</QuestionTitle>
-            <Image
-              src="/quiz/steak.jpg"
-              alt=""
-              width={800}
-              height={500}
-              className="mx-auto aspect-[16/10] w-full max-w-[420px] rounded-2xl object-cover shadow-[0_6px_20px_rgba(33,26,18,0.12)]"
-            />
-            <div className="mx-auto mt-4 max-w-[420px] rounded-2xl bg-tint p-5 text-left">
-              <p className="text-[13.5px] leading-relaxed text-ink">
-                Next comes the part that matters — what you actually eat. A model reads your
-                description, but every vitamin and mineral figure is computed from a USDA
-                composition table against published reference intakes.
-              </p>
-              <p className="mt-3 text-[12.5px] leading-relaxed text-mute">
-                Ask twice, get the same answer. No fibre guilt, no B12 false alarms — this tool is
-                built for this diet, and every source is named at the bottom of the page.
-              </p>
-            </div>
-          </div>
-        )}
-
-        {screen.id === "diet" && (
+        {screen.id === "food-meats" && (
           <>
-            <QuestionTitle sub="Plain sentences. Name the cuts, rough weights, and how often for anything weekly — “liver once a fortnight” is exactly the detail that changes the result.">
-              What do you eat on a normal day?
-            </QuestionTitle>
-            <textarea
-              rows={8}
-              autoFocus
-              placeholder={EXAMPLE}
-              value={draft.dietText}
-              onChange={(e) => set("dietText", e.target.value)}
-              aria-label="Your daily food"
-              className={textAreaClass}
-            />
-            <div className="mt-2 flex items-center justify-between gap-3 text-[11.5px] text-mute">
-              <button
-                type="button"
-                onClick={() => set("dietText", EXAMPLE)}
-                className="font-semibold underline underline-offset-4 hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cta"
-              >
-                Use an example
-              </button>
-              <span>{draft.dietText.trim().length}/4000</span>
-            </div>
-          </>
-        )}
-
-        {screen.id === "symptoms" && (
-          <>
-            <QuestionTitle sub="Choose all that apply. Where one lines up with what the numbers flag, the report says so — and where it doesn’t, it says that too.">
-              Have you been feeling any of these?
+            <QuestionTitle sub="Tap what you eat on a normal day, then set roughly how much. Averages are fine — this is a map, not a food log.">
+              Your daily meats
             </QuestionTitle>
             <div className="flex flex-col gap-2">
-              {SYMPTOMS.map((symptom) => (
-                <OptionCard
-                  key={symptom.id}
-                  multi
-                  selected={draft.symptoms.includes(symptom.id)}
-                  onClick={() => toggleSymptom(symptom.id)}
-                >
-                  {symptom.label}
-                </OptionCard>
+              {DAILY_MEATS.map((food) => (
+                <DailyFoodRow
+                  key={food.slug}
+                  food={food}
+                  grams={draft.daily[food.slug]}
+                  onChange={(g) => setDaily(food.slug, g)}
+                />
               ))}
-              <button
-                type="button"
-                onClick={() => clearGroupAndAdvance(symptomIds)}
-                className="mt-1 flex w-full items-center justify-center rounded-2xl border border-dashed border-faint bg-card py-4 text-[13px] font-bold text-mute transition-colors duration-150 hover:border-cta hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cta"
-              >
-                None of these
-              </button>
             </div>
           </>
         )}
 
-        {screen.id === "redflags" && (
+        {screen.id === "food-fats" && (
           <>
-            <QuestionTitle sub="These are not diet problems. Tick one and the report will say so at the top instead of offering a nutrient to chase.">
-              Any of these, right now?
+            <QuestionTitle sub="Eggs, dairy and added fats — daily amounts. Skip anything you don’t eat.">
+              Eggs, dairy &amp; fats
             </QuestionTitle>
             <div className="flex flex-col gap-2">
-              {RED_FLAGS.map((flag) => (
-                <OptionCard
-                  key={flag.id}
-                  multi
-                  tone="danger"
-                  selected={draft.symptoms.includes(flag.id)}
-                  onClick={() => toggleSymptom(flag.id)}
-                >
-                  {flag.label}
-                </OptionCard>
+              {DAILY_FATS.map((food) => (
+                <DailyFoodRow
+                  key={food.slug}
+                  food={food}
+                  grams={draft.daily[food.slug]}
+                  onChange={(g) => setDaily(food.slug, g)}
+                />
               ))}
-              <button
-                type="button"
-                onClick={() => clearGroupAndAdvance(redFlagIds)}
-                className="mt-1 flex w-full items-center justify-center rounded-2xl border border-dashed border-faint bg-card py-4 text-[13px] font-bold text-mute transition-colors duration-150 hover:border-cta hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cta"
-              >
-                No — none of these
-              </button>
             </div>
           </>
         )}
 
-        {screen.id === "supp-gate" && (
+        {screen.id === "food-weekly" && (
           <>
-            <QuestionTitle sub="Anything with a stated amount gets counted straight into your numbers.">
-              Do you take any supplements?
+            <QuestionTitle sub="Organs and seafood usually aren’t daily — set how many times per week. This is where most gaps close or stay open.">
+              Organs &amp; seafood
             </QuestionTitle>
-            <div className="flex flex-col gap-2.5">
-              <OptionCard icon={ICON.capsule} selected={draft.takesSupplements === "yes"} onClick={() => choose("takesSupplements", "yes")}>Yes</OptionCard>
-              <OptionCard icon={ICON.ban} selected={draft.takesSupplements === "no"} onClick={() => choose("takesSupplements", "no")}>No</OptionCard>
+            <div className="flex flex-col gap-2">
+              {WEEKLY_FOODS.map((food) => (
+                <WeeklyFoodRow
+                  key={food.slug}
+                  food={food}
+                  times={draft.weekly[food.slug]}
+                  onChange={(t) => setWeekly(food.slug, t)}
+                />
+              ))}
             </div>
-          </>
-        )}
-
-        {screen.id === "supp-text" && (
-          <>
-            <QuestionTitle sub="Quote the label — “magnesium glycinate 400mg”, “D3 5000 IU”. A “multivitamin” with no amounts can only be noted, not counted.">
-              What, and how much?
-            </QuestionTitle>
-            <textarea
-              rows={4}
-              autoFocus
-              placeholder="Magnesium glycinate 400mg at night, vitamin D 5000 IU, LMNT most mornings."
-              value={draft.supplements}
-              onChange={(e) => set("supplements", e.target.value)}
-              aria-label="Your supplements"
-              className={textAreaClass}
-            />
-          </>
-        )}
-
-        {screen.id === "offdays-gate" && (
-          <>
-            <QuestionTitle sub="Context for reading your symptoms and timeline — it is not added to the daily numbers, and nobody here is judging.">
-              Any cheat meals or time off the diet?
-            </QuestionTitle>
-            <div className="flex flex-col gap-2.5">
-              <OptionCard icon={ICON.pizza} selected={draft.hadOffDays === "yes"} onClick={() => choose("hadOffDays", "yes")}>Yes</OptionCard>
-              <OptionCard icon={ICON.shield} selected={draft.hadOffDays === "no"} onClick={() => choose("hadOffDays", "no")}>No, strict</OptionCard>
-            </div>
-          </>
-        )}
-
-        {screen.id === "offdays-text" && (
-          <>
-            <QuestionTitle sub="“Pizza most Saturdays”, “two weeks off over the holidays” — a weekly carb night changes what “three months strict” means.">
-              Roughly what, and how often?
-            </QuestionTitle>
-            <textarea
-              rows={3}
-              autoFocus
-              placeholder="A burger with the bun maybe twice a month. One week fully off in July."
-              value={draft.offDays}
-              onChange={(e) => set("offDays", e.target.value)}
-              aria-label="Your off days"
-              className={textAreaClass}
-            />
           </>
         )}
 
         {screen.id === "alcohol-gate" && (
           <>
-            <QuestionTitle>Do you drink alcohol?</QuestionTitle>
+            <QuestionTitle sub="Last question. Alcohol drains exactly what this diet is shortest on — magnesium, zinc, B1 — so the report reads differently if it’s regular.">
+              Do you drink alcohol?
+            </QuestionTitle>
             <div className="flex flex-col gap-2.5">
               <OptionCard
                 icon={ICON.glass}
@@ -909,14 +960,16 @@ export function Quiz({
               >
                 Yes
               </OptionCard>
-              <OptionCard icon={ICON.ban} selected={draft.alcohol === "none"} onClick={() => choose("alcohol", "none")}>No</OptionCard>
+              <OptionCard icon={ICON.ban} selected={draft.alcohol === "none"} onClick={() => choose("alcohol", "none")}>
+                No
+              </OptionCard>
             </div>
           </>
         )}
 
         {screen.id === "alcohol-amount" && (
           <>
-            <QuestionTitle sub="Not a judgement question. Alcohol drains exactly what this diet is shortest on — magnesium, zinc, B1 — so the report reads differently at “most days” than at “a few a month”.">
+            <QuestionTitle sub="Not a judgement question — it changes how your magnesium, zinc and B1 numbers should be read.">
               How much, honestly?
             </QuestionTitle>
             <div className="flex flex-col gap-2.5">
@@ -928,65 +981,26 @@ export function Quiz({
                   ["heavy", "3+ most days"],
                 ] as [AlcoholLevel, string][]
               ).map(([value, label]) => (
-                <OptionCard key={value} selected={draft.alcohol === value} onClick={() => choose("alcohol", value)}>
+                <OptionCard key={value} icon={ICON.glass} selected={draft.alcohol === value} onClick={() => choose("alcohol", value)}>
                   {label}
                 </OptionCard>
               ))}
             </div>
           </>
         )}
-
-        {screen.id === "review" && (
-          <>
-            <QuestionTitle sub="Two model calls and a pile of arithmetic — about ten seconds.">
-              Ready to run it
-            </QuestionTitle>
-            <ul className="flex flex-col overflow-hidden rounded-2xl border border-line bg-card shadow-[0_1px_2px_rgba(33,26,18,0.04)]">
-              {recap.map((row) => (
-                <li
-                  key={row.label}
-                  className="flex items-baseline justify-between gap-4 border-b border-line px-4 py-3 last:border-b-0"
-                >
-                  <span className="text-[10px] font-semibold tracking-[0.16em] text-mute uppercase">{row.label}</span>
-                  <span className="text-right text-[12.5px] font-medium text-ink">{row.value}</span>
-                </li>
-              ))}
-            </ul>
-            <p className="mt-3 text-[11.5px] leading-relaxed text-mute">
-              Your answers are processed to build the report and are not stored. No account, no
-              email. Use the arrow up top to change anything.
-            </p>
-            {error && (
-              <p role="alert" className="mt-3 rounded-2xl border border-bad/40 bg-bad/[0.06] px-4 py-3 text-[12.5px] font-medium text-bad">
-                {error}
-              </p>
-            )}
-          </>
-        )}
       </div>
 
       {/* ---- pinned CTA -------------------------------------------------- */}
-      {(needsCta || screen.id === "review") && (
+      {needsCta && (
         <div className="sticky bottom-0 mt-7 bg-cream/95 py-3 backdrop-blur-sm">
-          {screen.id === "review" ? (
-            <button
-              type="button"
-              onClick={onSubmit}
-              disabled={pending || !ctaEnabled}
-              className="w-full rounded-full bg-cta px-6 py-4 text-[12.5px] font-bold tracking-[0.12em] text-card uppercase shadow-[0_4px_14px_rgba(33,26,18,0.18)] transition-colors duration-150 hover:bg-ctah focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cta disabled:opacity-60"
-            >
-              {pending ? "Analysing…" : "Analyse my diet"}
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={() => forward(index, draft)}
-              disabled={!ctaEnabled}
-              className="w-full rounded-full bg-cta px-6 py-4 text-[12.5px] font-bold tracking-[0.12em] text-card uppercase shadow-[0_4px_14px_rgba(33,26,18,0.18)] transition-colors duration-150 hover:bg-ctah focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cta disabled:cursor-not-allowed disabled:bg-line disabled:text-faint disabled:shadow-none"
-            >
-              {screen.id === "trust" ? "Continue" : "Next step"}
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={() => forward(index, draft)}
+            disabled={!ctaEnabled}
+            className="w-full rounded-full bg-cta px-6 py-4 text-[12.5px] font-bold tracking-[0.12em] text-card uppercase shadow-[0_4px_14px_rgba(33,26,18,0.18)] transition-[background-color,scale] duration-150 active:scale-[0.99] hover:bg-ctah focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cta disabled:cursor-not-allowed disabled:bg-line disabled:text-faint disabled:shadow-none"
+          >
+            Next step
+          </button>
         </div>
       )}
     </div>

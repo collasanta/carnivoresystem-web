@@ -20,6 +20,7 @@ export const NUTRIENTS: Nutrient[] = [
     evidenceGap: "high",
     evidenceHarm: "low",
     why: "Muscle meat carries almost none, and cooking destroys what little there is. Chicken liver and spleen are the only meaningful animal sources — beef liver is not one, at 1.9mg per 100g.",
+    fix: "100g of chicken liver twice a week (~28mg per serving). Beef liver does not do this job.",
   },
   {
     id: "vitaminK2",
@@ -29,6 +30,7 @@ export const NUTRIENTS: Nutrient[] = [
     evidenceGap: "medium",
     evidenceHarm: "low",
     why: "The animal form. Dark chicken meat and skin lead by a wide margin, then egg yolk, chicken liver and aged cheese. Tracked separately from K1, which behaves differently. Our figures count MK-4 only, so aged cheese is understated here.",
+    fix: "Two egg yolks or 200g of dark chicken meat daily; aged cheese helps more than our MK-4-only figures show.",
   },
   {
     id: "vitaminK1",
@@ -38,6 +40,7 @@ export const NUTRIENTS: Nutrient[] = [
     evidenceGap: "high",
     evidenceHarm: "low",
     why: "Comes from green leaves, so intake is near zero by definition. Hepatic recycling and gut synthesis make frank clotting problems rare.",
+    fix: "No practical carnivore source — hepatic recycling keeps clotting normal; liver and eggs cover the margin.",
   },
   {
     id: "calcium",
@@ -47,6 +50,7 @@ export const NUTRIENTS: Nutrient[] = [
     evidenceGap: "high",
     evidenceHarm: "low",
     why: "Calcium lives in bone, milk and plants — not in muscle. A kilo of beef supplies about 150mg, 15% of the day. Serum calcium stays normal because PTH strips bone to hold it there, so a blood test will not show this.",
+    fix: "½ tsp of eggshell powder daily (~500mg), 100g of sardines with bones (~380mg), or 50g of hard cheese.",
   },
   {
     id: "magnesium",
@@ -56,6 +60,7 @@ export const NUTRIENTS: Nutrient[] = [
     evidenceGap: "high",
     evidenceHarm: "medium",
     why: "Short on both ends: meat carries only ~20mg per 100g, and ketogenic natriuresis increases urinary losses. This is the deficiency people actually feel — cramps, palpitations, broken sleep.",
+    fix: "300–400mg of magnesium glycinate at night — the one gap food honestly cannot close here.",
   },
   {
     id: "manganese",
@@ -65,6 +70,7 @@ export const NUTRIENTS: Nutrient[] = [
     evidenceGap: "high",
     evidenceHarm: "low",
     why: "Distributed almost entirely in plants; meat has effectively none. The numeric shortfall is dramatic, but spontaneous dietary deficiency has never been well characterised in adults. Mussels are the one animal food that fixes it.",
+    fix: "100g of mussels once a week covers it three times over. No other animal food comes close.",
   },
   {
     id: "sodium",
@@ -74,6 +80,7 @@ export const NUTRIENTS: Nutrient[] = [
     evidenceGap: "high",
     evidenceHarm: "high",
     why: "The alert runs backwards here. Low insulin removes its antinatriuretic effect on the kidney, so sodium is dumped. Under-salting is the single most common cause of fatigue, cramps, headache and dizziness in the first month.",
+    fix: "Salt more: ~4g of sodium a day (about 2 tsp of salt), spread across meals.",
   },
   {
     id: "potassium",
@@ -83,6 +90,7 @@ export const NUTRIENTS: Nutrient[] = [
     evidenceGap: "medium",
     evidenceHarm: "medium",
     why: "Beef is a decent source at ~300mg per 100g, so a kilo roughly reaches the AI — but few people eat a kilo. Kaliuresis follows the sodium loss, so the target sits above the standard AI, not below.",
+    fix: "More volume — 200g of salmon or extra lean beef. Potassium tracks how much meat you actually eat.",
   },
   {
     id: "vitaminD",
@@ -92,6 +100,7 @@ export const NUTRIENTS: Nutrient[] = [
     evidenceGap: "high",
     evidenceHarm: "medium",
     why: "No land animal food carries a useful amount. Fatty fish and sunlight are the real sources, which makes this the one nutrient your latitude and season decide more than your plate.",
+    fix: "15–30 minutes of midday sun most days, fatty fish twice a week, or D3 through winter.",
   },
   {
     id: "folate",
@@ -101,6 +110,7 @@ export const NUTRIENTS: Nutrient[] = [
     evidenceGap: "high",
     evidenceHarm: "medium",
     why: "Muscle carries 5–12mcg per 100g. Liver carries 250–580. This is a gap that closes completely with organs once a week or eggs daily, and stays wide open without them.",
+    fix: "100g of chicken liver covers the day five times over; three eggs daily cover most of it.",
   },
   {
     id: "b1",
@@ -110,6 +120,7 @@ export const NUTRIENTS: Nutrient[] = [
     evidenceGap: "high",
     evidenceHarm: "medium",
     why: "Beef is a poor source — a whole kilo gives about half a day's worth — and thiamin is heat-labile and water-soluble, so long cooking and discarded juices cost more. Pork is the exception that fixes it.",
+    fix: "Pork: 200g of loin twice a week. Beef is a thiamin desert.",
   },
   {
     id: "vitaminE",
@@ -119,6 +130,7 @@ export const NUTRIENTS: Nutrient[] = [
     evidenceGap: "high",
     evidenceHarm: "low",
     why: "Comes from seed oils and nuts, so intake is near zero. The requirement scales with polyunsaturated fat intake — on ruminant fat the real need is far below the RDA, but a bacon-and-chicken diet keeps the need high while intake stays at zero.",
+    fix: "Sardines, shrimp and egg yolks help — and on ruminant fat your real need is far below the RDA.",
   },
   {
     id: "iodine",
@@ -128,6 +140,7 @@ export const NUTRIENTS: Nutrient[] = [
     evidenceGap: "high",
     evidenceHarm: "medium",
     why: "Almost entirely decided by which salt is in the shaker. Iodised table salt averages 52mcg per gram; non-iodised sea salt averages 0.015. Swapping one for the other does not reduce your iodine, it removes it.",
+    fix: "Iodised salt (1–2g/day covers it), or 100g of cod weekly.",
   },
   {
     id: "epaDha",
@@ -137,6 +150,7 @@ export const NUTRIENTS: Nutrient[] = [
     evidenceGap: "high",
     evidenceHarm: "medium",
     why: "Land animals supply essentially none. Only fatty fish, roe and some shellfish carry EPA and DHA in useful amounts.",
+    fix: "100–150g of sardines, salmon, mackerel or herring twice a week.",
   },
   {
     id: "copper",
@@ -146,6 +160,7 @@ export const NUTRIENTS: Nutrient[] = [
     evidenceGap: "medium",
     evidenceHarm: "medium",
     why: "Muscle is poor in copper and rich in zinc, and zinc induces the intestinal protein that sequesters copper and sends it out in stool. Liver or oysters fix it outright; without them the ratio drifts badly.",
+    fix: "100g of liver weekly, or oysters — one serving resets the ratio.",
   },
   {
     id: "choline",
@@ -155,6 +170,7 @@ export const NUTRIENTS: Nutrient[] = [
     evidenceGap: "medium",
     evidenceHarm: "medium",
     why: "Usually fine — a kilo of beef nearly covers it and eggs or organs put it well over. The exception is a lower-calorie diet with no eggs and no organs.",
+    fix: "Three whole eggs a day (~440mg), or 100g of liver.",
   },
   {
     id: "biotin",
@@ -164,6 +180,7 @@ export const NUTRIENTS: Nutrient[] = [
     evidenceGap: "low",
     evidenceHarm: "low",
     why: "Not a carnivore gap. The one real risk is raw egg white, whose avidin binds biotin irreversibly — cooking denatures it and the problem disappears.",
+    fix: "Cook the whites; yolks can stay runny. That is the entire fix.",
   },
   {
     id: "selenium",
@@ -236,6 +253,7 @@ export const NUTRIENTS: Nutrient[] = [
     evidenceGap: "high",
     evidenceHarm: "high",
     why: "Not a deficiency here — a ceiling. 100g of cooked beef liver carries about 9,400mcg RAE, over three times the daily upper limit for preformed retinol.",
+    fix: "Cap beef liver at 100–200g per WEEK. Chicken liver allows about triple the volume.",
   },
   {
     id: "iron",
@@ -245,6 +263,7 @@ export const NUTRIENTS: Nutrient[] = [
     evidenceGap: "high",
     evidenceHarm: "high",
     why: "Direction depends on who you are. Menstruating women can fall short; everyone else accumulates, because heme iron is absorbed efficiently and the body has no active route to excrete it.",
+    fix: "For accumulators: donate blood every 4–6 months. For menstruating women: keep red meat central.",
   },
   {
     id: "zinc",
@@ -254,6 +273,7 @@ export const NUTRIENTS: Nutrient[] = [
     evidenceGap: "high",
     evidenceHarm: "medium",
     why: "A kilo of beef delivers 50–60mg against an upper limit of 40, with no phytates to blunt absorption. The problem it causes is copper, not zinc itself.",
+    fix: "Nothing to add — fix the copper side with liver or oysters instead.",
   },
 ];
 

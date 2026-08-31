@@ -178,7 +178,7 @@ export async function parseDiet(profile: Profile): Promise<ParsedIntake> {
   }>({
     chain: CHAINS.parser,
     systemInstruction: SYSTEM,
-    prompt: `Diet description:\n"""\n${profile.dietText.slice(0, 4000)}\n"""\n\nSupplements description:\n"""\n${
+    prompt: `Diet description:\n"""\n${(profile.dietText ?? "").slice(0, 4000)}\n"""\n\nSupplements description:\n"""\n${
       supplementsText ? supplementsText.slice(0, 800) : "none"
     }\n"""\n\n${hints.join("\n")}`,
     responseSchema: SCHEMA,
