@@ -308,7 +308,7 @@ function Stepper({
       >
         &minus;
       </button>
-      <span className="w-[64px] text-center text-[12.5px] font-bold tracking-[-0.01em] text-ink tabular-nums">
+      <span className="min-w-[64px] text-center text-[12.5px] font-bold tracking-[-0.01em] whitespace-nowrap text-ink tabular-nums">
         {value}
         {suffix}
       </span>
@@ -357,14 +357,27 @@ function DailyFoodRow({
         {food.hint && <span className="mt-0.5 block text-[10.5px] text-mute">{food.hint}</span>}
       </span>
       {selected ? (
-        <Stepper
-          value={grams}
-          onChange={(v) => onChange(v < food.step ? undefined : v)}
-          step={food.step}
-          min={0}
-          max={food.max}
-          suffix="g"
-        />
+        food.countUnit ? (
+          <Stepper
+            value={Math.round(grams / food.countUnit.grams)}
+            onChange={(units) =>
+              onChange(units < 1 ? undefined : units * food.countUnit!.grams)
+            }
+            step={1}
+            min={0}
+            max={Math.round(food.max / food.countUnit.grams)}
+            suffix={` ${Math.round(grams / food.countUnit.grams) === 1 ? food.countUnit.singular : food.countUnit.plural}`}
+          />
+        ) : (
+          <Stepper
+            value={grams}
+            onChange={(v) => onChange(v < food.step ? undefined : v)}
+            step={food.step}
+            min={0}
+            max={food.max}
+            suffix="g"
+          />
+        )
       ) : (
         <span
           aria-hidden="true"

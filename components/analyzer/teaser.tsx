@@ -1,6 +1,7 @@
 "use client";
 
-import type { Assessment } from "@/lib/analyzer/types";
+import type { Assessment, NutrientId } from "@/lib/analyzer/types";
+import { BAND_LABEL, BAND_TEXT } from "./nutrient-bar";
 import { cn } from "@/lib/utils";
 
 /**
@@ -19,6 +20,9 @@ export function Teaser({ assessment, onReveal }: { assessment: Assessment; onRev
   };
 
   const surprise = surpriseId ? nutrients.find((n) => n.id === surpriseId) : null;
+  const electrolytes = (["sodium", "potassium", "magnesium"] as NutrientId[])
+    .map((id) => nutrients.find((n) => n.id === id)!)
+    .filter(Boolean);
   const hooked = symptomInsights.filter((s) => s.matchedCauses.length > 0);
 
   const tone = score.value >= 75 ? "text-good" : score.value >= 50 ? "text-warn" : "text-bad";
@@ -61,6 +65,25 @@ export function Teaser({ assessment, onReveal }: { assessment: Assessment; onRev
           <div className="mt-0.5 text-[9px] font-semibold tracking-[0.12em] text-mute uppercase">
             On target
           </div>
+        </div>
+      </div>
+
+      <div className="mx-auto mt-4 max-w-[400px] rounded-2xl border border-line bg-card p-3.5 shadow-[0_1px_3px_rgba(33,26,18,0.05)]">
+        <p className="text-[9.5px] font-bold tracking-[0.16em] text-mute uppercase">Electrolytes</p>
+        <div className="mt-2 flex items-center justify-center gap-2">
+          {electrolytes.map((n) => (
+            <span
+              key={n.id}
+              className="flex-1 rounded-xl bg-tint px-2 py-2 text-center"
+            >
+              <span className="block text-[10.5px] font-semibold text-ink">
+                {n.id === "sodium" ? "Sodium" : n.id === "potassium" ? "Potassium" : "Magnesium"}
+              </span>
+              <span className={cn("block text-[9.5px] font-bold tracking-[0.06em] uppercase", BAND_TEXT[n.band])}>
+                {BAND_LABEL[n.band]}
+              </span>
+            </span>
+          ))}
         </div>
       </div>
 

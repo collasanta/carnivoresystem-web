@@ -172,8 +172,19 @@ export function Report({
     {} as Record<Band, number>,
   );
 
-  const attention = nutrients.filter((n) => n.band !== "adequate");
-  const onTarget = nutrients.filter((n) => n.band === "adequate");
+  // The electrolyte trio gets its own stage — it is the first thing anyone on
+  // this diet checks, and most early symptoms live there. Pulled out of the
+  // general lists so they appear exactly once, up top, regardless of band.
+  const ELECTROLYTES: NutrientId[] = ["sodium", "potassium", "magnesium"];
+  const electrolytes = ELECTROLYTES.map((id) => nutrients.find((n) => n.id === id)!).filter(
+    Boolean,
+  );
+  const attention = nutrients.filter(
+    (n) => n.band !== "adequate" && !ELECTROLYTES.includes(n.id),
+  );
+  const onTarget = nutrients.filter(
+    (n) => n.band === "adequate" && !ELECTROLYTES.includes(n.id),
+  );
   const insights = (symptomInsights ?? []).filter(Boolean);
   const scoreTone = score.value >= 75 ? "text-good" : score.value >= 50 ? "text-warn" : "text-bad";
 
@@ -294,6 +305,43 @@ export function Report({
           </button>
         )}
       </div>
+
+      <section aria-label="Electrolytes" className="mt-6">
+        <h2 className="flex items-baseline gap-2.5 text-[16px] font-extrabold tracking-[-0.01em]">
+          Electrolytes
+        </h2>
+        <p className="mt-1 mb-3 text-[12.5px] leading-relaxed text-mute">
+          The first thing to check on this diet. Ketosis makes the kidney dump sodium, potassium
+          follows it, and magnesium was already short — most first-month symptoms live in these
+          three bars.
+        </p>
+        <ul className="flex flex-col gap-3">
+          {electrolytes.map((result) => (
+            <li
+              key={result.id}
+              className="rounded-2xl border border-line bg-card p-4 shadow-[0_1px_2px_rgba(33,26,18,0.04)]"
+            >
+              <div className="mb-2.5 flex items-baseline justify-between gap-3">
+                <h3 className="text-[14px] font-bold tracking-[-0.01em]">{result.label}</h3>
+                {result.targetNote && (
+                  <span className="flex-none rounded-full border border-line px-2 py-0.5 text-[8.5px] font-semibold tracking-[0.1em] text-mute uppercase">
+                    Keto-adjusted target
+                  </span>
+                )}
+              </div>
+              <NutrientBar result={result} />
+              {result.band !== "adequate" && result.fix && (
+                <p className="mt-2.5 text-[12.5px] leading-relaxed font-medium text-ink">
+                  <span className="text-[9.5px] font-bold tracking-[0.14em] text-walnut uppercase">
+                    Fix:{" "}
+                  </span>
+                  {result.fix}
+                </p>
+              )}
+            </li>
+          ))}
+        </ul>
+      </section>
 
       <SupplementPanel baseGapIds={baseGapIds} supps={supps} onToggle={onToggleSupp} />
 

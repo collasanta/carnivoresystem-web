@@ -12,6 +12,8 @@ export interface DailyFood {
   step: number;
   max: number;
   hint?: string;
+  /** Foods people count in units, not grams — the stepper shows "3 eggs". */
+  countUnit?: { grams: number; singular: string; plural: string };
 }
 
 export interface WeeklyFood {
@@ -37,8 +39,8 @@ export const DAILY_MEATS: DailyFood[] = [
 ];
 
 export const DAILY_FATS: DailyFood[] = [
-  { slug: "egg-whole", label: "Whole eggs", defaultGrams: 150, step: 50, max: 600, hint: "1 egg ≈ 50g" },
-  { slug: "egg-yolk", label: "Extra yolks", defaultGrams: 34, step: 17, max: 170, hint: "1 yolk ≈ 17g" },
+  { slug: "egg-whole", label: "Whole eggs", defaultGrams: 150, step: 50, max: 600, countUnit: { grams: 50, singular: "egg", plural: "eggs" } },
+  { slug: "egg-yolk", label: "Extra yolks", defaultGrams: 34, step: 17, max: 170, countUnit: { grams: 17, singular: "yolk", plural: "yolks" } },
   { slug: "butter", label: "Butter", defaultGrams: 30, step: 10, max: 150 },
   { slug: "ghee", label: "Ghee", defaultGrams: 20, step: 10, max: 100 },
   { slug: "tallow", label: "Tallow", defaultGrams: 20, step: 10, max: 100 },
