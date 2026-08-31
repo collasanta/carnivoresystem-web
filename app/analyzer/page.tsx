@@ -92,6 +92,54 @@ export default function AnalyzerPage() {
         </ul>
       </section>
 
+      <section aria-label="Data sources" className="mt-10">
+        <h2 className="mb-3 font-display text-[13px] tracking-[0.06em] uppercase">
+          Where the numbers come from
+        </h2>
+        <div className="border border-edge bg-smoke p-4">
+          <ul className="flex list-none flex-col gap-2 text-[11px] leading-relaxed text-salt">
+            <li>
+              <span className="text-bone">Food composition</span> &mdash; USDA FoodData Central
+              (SR Legacy), by fdcId per food.
+            </li>
+            <li>
+              <span className="text-bone">Vitamin K2 (MK-4)</span> &mdash; Elder, Haytowitz,
+              Howe, Peterson &amp; Booth, <em>J Agric Food Chem</em> 2006;54:463&ndash;467. That
+              study measured MK-4 only, so long-chain menaquinones in aged cheese are not
+              represented and cheese is understated here.
+            </li>
+            <li>
+              <span className="text-bone">Iodine</span> &mdash; USDA/FDA/ODS-NIH Database for the
+              Iodine Content of Common Foods, Release 4. Foods absent from that database carry no
+              figure rather than a guessed one.
+            </li>
+            <li>
+              <span className="text-bone">Biotin</span> &mdash; Staggs et al.,{" "}
+              <em>J Food Compost Anal</em> 2004;17:767&ndash;776, the assay behind the NIH ODS
+              tables.
+            </li>
+            <li>
+              <span className="text-bone">Targets and upper limits</span> &mdash; NASEM Dietary
+              Reference Intakes. Where a target departs from the DRI (sodium, potassium, vitamin
+              C, vitamin E, K2), the report says so next to that nutrient and explains why.
+            </li>
+            <li>
+              <span className="text-bone">Energy</span> &mdash; Mifflin-St Jeor with standard
+              activity factors.
+            </li>
+            <li>
+              <span className="text-bone">Eggshell calcium</span> &mdash; Schaafsma &amp; Beelen
+              (1999); Omelka et al. (2021): 401mg elemental calcium per gram, absorbed as well as
+              or better than purified calcium carbonate.
+            </li>
+          </ul>
+          <p className="mt-3 border-t border-edge pt-3 text-[11px] leading-relaxed text-salt">
+            Your answers are processed to build the report and are not stored anywhere. No
+            account, no email. The draft you type is saved only in your own browser.
+          </p>
+        </div>
+      </section>
+
       <footer className="mt-[34px] flex items-center gap-2.5 text-[10px] tracking-[0.2em] text-salt uppercase">
         <Link
           href="/"

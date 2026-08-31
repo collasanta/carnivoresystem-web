@@ -137,6 +137,13 @@ export interface NutrientResult {
   targetNote?: string;
   /** Which foods in the diet supplied this nutrient, largest first. */
   topSources: { label: string; amount: number }[];
+  /**
+   * Share of consumed grams (matched foods only) whose table entry carries a
+   * measured value for this nutrient. Absent field = unmeasured, and unmeasured
+   * counts as zero intake — so low coverage means the true intake is likely
+   * HIGHER than shown, and the UI says so instead of printing false precision.
+   */
+  coverage: number;
 }
 
 export interface MacroResult {
@@ -159,12 +166,25 @@ export interface Flag {
   detail: string;
 }
 
+/**
+ * A reported symptom crossed against what the engine actually flagged.
+ * Computed deterministically so the report keeps this section even when the
+ * narrative stage fails — it is the one section the symptom-driven visitor
+ * came for.
+ */
+export interface SymptomInsight {
+  symptom: string;
+  quickTest: string;
+  matchedCauses: string[];
+}
+
 /** The deterministic output. Stage 3 writes prose about this and nothing else. */
 export interface Assessment {
   macros: MacroResult;
   nutrients: NutrientResult[];
   flags: Flag[];
   parsed: ParsedFood[];
+  symptomInsights: SymptomInsight[];
   redFlags: { symptom: string; urgency: "emergency" | "urgent"; reason: string }[];
 }
 

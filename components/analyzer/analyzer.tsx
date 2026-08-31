@@ -2,11 +2,12 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { AnalysisReport } from "@/lib/analyzer/types";
-import { Quiz, type Draft } from "./quiz";
+import { EMPTY_DRAFT, Quiz, type Draft } from "./quiz";
 import { Report } from "./report";
 
 const LB_TO_KG = 0.453592;
 const IN_TO_CM = 2.54;
+const DRAFT_KEY = "cs-analyzer-draft-v2";
 
 function toNumber(value: string, fallback: number): number {
   const parsed = Number.parseFloat(value.replace(",", "."));
@@ -16,12 +17,14 @@ function toNumber(value: string, fallback: number): number {
 function toPayload(draft: Draft) {
   const metric = draft.units === "metric";
   const weight = toNumber(draft.weight, metric ? 80 : 176);
-  const height = toNumber(draft.height, metric ? 175 : 69);
+  const heightCm = metric
+    ? toNumber(draft.heightCm, 175)
+    : (toNumber(draft.heightFt, 5) * 12 + toNumber(draft.heightIn, 9)) * IN_TO_CM;
   return {
     sex: draft.sex,
     age: Math.round(toNumber(draft.age, 35)),
     weightKg: metric ? weight : weight * LB_TO_KG,
-    heightCm: metric ? height : height * IN_TO_CM,
+    heightCm,
     activity: draft.activity,
     goal: draft.goal,
     tenure: draft.tenure,
@@ -67,16 +70,48 @@ function Working() {
 }
 
 export function Analyzer() {
+  const [draft, setDraft] = useState<Draft>(EMPTY_DRAFT);
   const [report, setReport] = useState<AnalysisReport | null>(null);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string>();
   const resultRef = useRef<HTMLDivElement>(null);
 
+  // The draft outlives the component: a refresh mid-quiz, or "edit and re-run"
+  // after a report, both come back with every answer intact. localStorage can
+  // throw (private windows, blocked storage), so every touch is guarded and the
+  // quiz works identically with no storage at all.
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(DRAFT_KEY);
+      // Deliberate one-time synchronous setState: reading localStorage during
+      // render would mismatch the server HTML, so the saved draft has to land
+      // in a post-hydration effect. It runs once and cannot cascade.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      if (raw) setDraft({ ...EMPTY_DRAFT, ...(JSON.parse(raw) as Partial<Draft>) });
+    } catch {
+      /* storage unavailable — the quiz still works, it just forgets */
+    }
+  }, []);
+
+  useEffect(() => {
+    // Identity check, not a flag: the mount render still holds the literal
+    // EMPTY_DRAFT object, and saving it would race the load effect and wipe a
+    // stored draft before it is applied (StrictMode's double-invoke makes this
+    // a certainty in dev). Any real change — restored or typed — replaces the
+    // object, and only those writes reach storage.
+    if (draft === EMPTY_DRAFT) return;
+    try {
+      window.localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+    } catch {
+      /* ditto */
+    }
+  }, [draft]);
+
   useEffect(() => {
     if (report) resultRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   }, [report]);
 
-  async function run(draft: Draft) {
+  async function run() {
     setPending(true);
     setError(undefined);
     try {
@@ -110,7 +145,7 @@ export function Analyzer() {
     <div>
       {pending ? <Working /> : null}
       <div className={pending ? "mt-5 opacity-40" : undefined} aria-busy={pending}>
-        <Quiz onSubmit={run} pending={pending} error={error} />
+        <Quiz draft={draft} onChange={setDraft} onSubmit={run} pending={pending} error={error} />
       </div>
     </div>
   );

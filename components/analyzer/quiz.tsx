@@ -7,11 +7,19 @@ import type { Activity, Goal, SaltType, Sex, Tenure } from "@/lib/analyzer/types
 import { cn } from "@/lib/utils";
 import { ChoiceGroup, Label, TextArea, TextInput, Toggle } from "./fields";
 
+/**
+ * The draft lives in the PARENT, not here. The natural loop of this tool is
+ * "tweak one food and run it again", and keeping state here meant a re-run
+ * threw away all five steps. The parent also persists it to localStorage, so a
+ * refresh mid-quiz costs nothing either.
+ */
 export interface Draft {
   sex: Sex;
   age: string;
   weight: string;
-  height: string;
+  heightCm: string;
+  heightFt: string;
+  heightIn: string;
   units: "metric" | "imperial";
   activity: Activity;
   goal: Goal;
@@ -28,7 +36,9 @@ export const EMPTY_DRAFT: Draft = {
   sex: "male",
   age: "",
   weight: "",
-  height: "",
+  heightCm: "",
+  heightFt: "",
+  heightIn: "",
   units: "metric",
   activity: "moderate",
   goal: "maintain",
@@ -45,12 +55,21 @@ const STEPS = ["Body", "Context", "Your food", "Symptoms", "Supplements"] as con
 
 const EXAMPLE = `Two meals a day. 500g ribeye for lunch, 400g of ground beef with three eggs for dinner. Butter on most things. Beef liver maybe once a fortnight. No fish. Coffee in the morning.`;
 
+const num = (value: string): number | null => {
+  const n = Number.parseFloat(value.replace(",", "."));
+  return Number.isFinite(n) ? n : null;
+};
+
 export function Quiz({
+  draft,
+  onChange,
   onSubmit,
   pending,
   error,
 }: {
-  onSubmit: (draft: Draft) => void;
+  draft: Draft;
+  onChange: (draft: Draft) => void;
+  onSubmit: () => void;
   pending: boolean;
   error?: string;
 }) {
@@ -59,8 +78,7 @@ export function Quiz({
   const firstRender = useRef(true);
 
   // Steps vary a lot in height, so advancing can leave the new panel below the
-  // fold with an empty screen above it. Skipped on mount so the page does not
-  // yank itself downward before anyone has interacted with it.
+  // fold. Skipped on mount so the page does not yank itself downward.
   useEffect(() => {
     if (firstRender.current) {
       firstRender.current = false;
@@ -69,35 +87,72 @@ export function Quiz({
     panelRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }, [step]);
 
-  const [draft, setDraft] = useState<Draft>(EMPTY_DRAFT);
   const set = <K extends keyof Draft>(key: K, value: Draft[K]) =>
-    setDraft((d) => ({ ...d, [key]: value }));
+    onChange({ ...draft, [key]: value });
+
+  /** Switching units converts what is already typed instead of discarding it. */
+  function switchUnits(next: "metric" | "imperial") {
+    if (next === draft.units) return;
+    const d: Draft = { ...draft, units: next };
+    if (next === "imperial") {
+      const kg = num(draft.weight);
+      if (kg !== null) d.weight = String(Math.round(kg * 2.20462));
+      const cm = num(draft.heightCm);
+      if (cm !== null) {
+        const inchesTotal = cm / 2.54;
+        let ft = Math.floor(inchesTotal / 12);
+        let inch = Math.round(inchesTotal % 12);
+        if (inch === 12) {
+          ft += 1;
+          inch = 0;
+        }
+        d.heightFt = String(ft);
+        d.heightIn = String(inch);
+      }
+    } else {
+      const lb = num(draft.weight);
+      if (lb !== null) d.weight = String(Math.round(lb * 0.453592));
+      const ft = num(draft.heightFt);
+      const inch = num(draft.heightIn);
+      if (ft !== null || inch !== null) {
+        d.heightCm = String(Math.round(((ft ?? 0) * 12 + (inch ?? 0)) * 2.54));
+      }
+    }
+    onChange(d);
+  }
 
   const metric = draft.units === "metric";
   const dietReady = draft.dietText.trim().length >= 10;
   const canAdvance = step === 2 ? dietReady : true;
 
   function toggleSymptom(id: string) {
-    setDraft((d) => ({
-      ...d,
-      symptoms: d.symptoms.includes(id)
-        ? d.symptoms.filter((s) => s !== id)
-        : [...d.symptoms, id],
-    }));
+    onChange({
+      ...draft,
+      symptoms: draft.symptoms.includes(id)
+        ? draft.symptoms.filter((s) => s !== id)
+        : [...draft.symptoms, id],
+    });
   }
 
   return (
     <div>
       <ol className="mb-6 flex flex-wrap gap-x-3 gap-y-1.5 text-[10px] tracking-[0.16em] uppercase">
         {STEPS.map((name, index) => (
-          <li
-            key={name}
-            aria-current={index === step ? "step" : undefined}
-            className={cn(
-              index === step ? "text-ember" : index < step ? "text-bone" : "text-ash",
-            )}
-          >
-            {String(index + 1).padStart(2, "0")} {name}
+          <li key={name}>
+            <button
+              type="button"
+              onClick={() => index < step && setStep(index)}
+              aria-current={index === step ? "step" : undefined}
+              className={cn(
+                index === step ? "text-ember" : index < step ? "text-bone" : "text-ash",
+                index < step &&
+                  "cursor-pointer underline-offset-4 hover:text-ember hover:underline",
+                "uppercase tracking-[0.16em] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ember",
+              )}
+              disabled={index >= step}
+            >
+              {String(index + 1).padStart(2, "0")} {name}
+            </button>
           </li>
         ))}
       </ol>
@@ -108,6 +163,18 @@ export function Quiz({
       >
         {step === 0 && (
           <div className="flex flex-col gap-5">
+            <div>
+              <Label>Units</Label>
+              <div className="grid max-w-[280px] grid-cols-2 gap-2">
+                <Toggle pressed={metric} onToggle={() => switchUnits("metric")}>
+                  kg / cm
+                </Toggle>
+                <Toggle pressed={!metric} onToggle={() => switchUnits("imperial")}>
+                  lb / ft-in
+                </Toggle>
+              </div>
+            </div>
+
             <ChoiceGroup
               legend="Sex"
               value={draft.sex}
@@ -146,29 +213,45 @@ export function Quiz({
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            {metric ? (
               <div>
-                <Label htmlFor="height">Height ({metric ? "cm" : "inches"})</Label>
+                <Label htmlFor="height">Height (cm)</Label>
                 <TextInput
                   id="height"
                   inputMode="decimal"
-                  placeholder={metric ? "180" : "71"}
-                  value={draft.height}
-                  onChange={(e) => set("height", e.target.value)}
+                  placeholder="180"
+                  value={draft.heightCm}
+                  onChange={(e) => set("heightCm", e.target.value)}
+                  className="max-w-[200px]"
                 />
               </div>
+            ) : (
               <div>
-                <Label>Units</Label>
-                <div className="grid grid-cols-2 gap-2">
-                  <Toggle pressed={metric} onToggle={() => set("units", "metric")}>
-                    Metric
-                  </Toggle>
-                  <Toggle pressed={!metric} onToggle={() => set("units", "imperial")}>
-                    Imperial
-                  </Toggle>
+                <Label>Height</Label>
+                <div className="grid max-w-[280px] grid-cols-2 gap-3">
+                  <div className="flex items-center gap-2">
+                    <TextInput
+                      aria-label="Feet"
+                      inputMode="numeric"
+                      placeholder="5"
+                      value={draft.heightFt}
+                      onChange={(e) => set("heightFt", e.target.value)}
+                    />
+                    <span className="text-[11px] text-salt">ft</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <TextInput
+                      aria-label="Inches"
+                      inputMode="numeric"
+                      placeholder="11"
+                      value={draft.heightIn}
+                      onChange={(e) => set("heightIn", e.target.value)}
+                    />
+                    <span className="text-[11px] text-salt">in</span>
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
           </div>
         )}
 
@@ -241,6 +324,7 @@ export function Quiz({
                 placeholder="6"
                 value={draft.saltGrams}
                 onChange={(e) => set("saltGrams", e.target.value)}
+                className="max-w-[200px]"
               />
               <p className="mt-2 text-[11px] leading-relaxed text-salt">
                 A rounded teaspoon is about 6g. Guess if you have to — a guess is far better than
@@ -349,6 +433,10 @@ export function Quiz({
               value={draft.supplements}
               onChange={(e) => set("supplements", e.target.value)}
             />
+            <p className="text-[11px] leading-relaxed text-salt">
+              Your answers are processed to build this report and are not stored. No account, no
+              email, nothing to unsubscribe from.
+            </p>
           </div>
         )}
       </div>
@@ -381,7 +469,7 @@ export function Quiz({
         ) : (
           <button
             type="button"
-            onClick={() => onSubmit(draft)}
+            onClick={onSubmit}
             disabled={pending || !dietReady}
             className="border border-ember bg-ember px-6 py-3 font-display text-[12px] tracking-[0.14em] whitespace-nowrap text-char uppercase transition-colors duration-150 hover:bg-blood focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ember disabled:opacity-60"
           >

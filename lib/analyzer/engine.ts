@@ -2,6 +2,7 @@ import { FOOD_BY_SLUG } from "./foods";
 import { NUTRIENTS } from "./nutrients";
 import { energyTarget, resolveTarget, saltContribution } from "./dri";
 import { RED_FLAG_BY_ID } from "./redflags";
+import { SYMPTOM_BY_ID } from "./symptoms";
 import type {
   Assessment,
   Band,
@@ -22,6 +23,10 @@ interface Totals {
   linoleic: number;
   nutrients: Record<string, number>;
   sources: Record<string, { label: string; amount: number }[]>;
+  /** Grams of matched food whose entry has a measured value, per nutrient. */
+  measured: Record<string, number>;
+  /** Total grams of matched (non-"other") food. */
+  matchedGrams: number;
 }
 
 function accumulate(profile: Profile, parsed: ParsedFood[]): Totals {
@@ -33,6 +38,8 @@ function accumulate(profile: Profile, parsed: ParsedFood[]): Totals {
     linoleic: 0,
     nutrients: {},
     sources: {},
+    measured: {},
+    matchedGrams: 0,
   };
 
   for (const item of parsed) {
@@ -56,8 +63,12 @@ function accumulate(profile: Profile, parsed: ParsedFood[]): Totals {
     totals.fat += food.fat * factor;
     totals.satFat += food.satFat * factor;
     totals.linoleic += food.linoleic * factor;
+    totals.matchedGrams += grams;
 
     for (const [id, per100] of Object.entries(food.nutrients)) {
+      // Presence of the field — including an explicit zero — means the value
+      // was measured. Absence means nobody measured it, which is different.
+      totals.measured[id] = (totals.measured[id] ?? 0) + grams;
       const amount = (per100 as number) * factor;
       if (!amount) continue;
       totals.nutrients[id] = (totals.nutrients[id] ?? 0) + amount;
@@ -303,6 +314,10 @@ export function analyze(profile: Profile, parsed: ParsedFood[]): Assessment {
       band: classify(nutrient, intake, target, limit, profile),
       targetNote: note,
       topSources,
+      coverage:
+        totals.matchedGrams > 0
+          ? Math.min(1, (totals.measured[nutrient.id] ?? 0) / totals.matchedGrams)
+          : 1,
     };
   }).sort(
     (a, b) =>
@@ -311,18 +326,44 @@ export function analyze(profile: Profile, parsed: ParsedFood[]): Assessment {
       a.ratio - b.ratio,
   );
 
+  const flags = buildFlags(profile, macros, totals, parsed, (id) =>
+    nutrients.find((n) => n.id === id)?.band ?? "deficient",
+  );
+
   const redFlags = profile.symptoms
     .map((id) => RED_FLAG_BY_ID[id])
     .filter(Boolean)
     .map((f) => ({ symptom: f.label, urgency: f.urgency, reason: f.reason }));
 
+  // Reported symptoms crossed against what actually came up short. Computed
+  // here, not by the model, so the section survives a narrative failure.
+  const bandById = new Map(nutrients.map((n) => [n.id, n.band]));
+  const flaggedBands = new Set<Band>(["deficient", "low", "high", "excess"]);
+  const calorieGap = flags.some((f) => f.id === "calorie-gap");
+  const fatIssue = flags.some((f) => f.id === "fat-to-protein" || f.id === "protein-ceiling");
+  const symptomInsights = profile.symptoms
+    .map((id) => SYMPTOM_BY_ID[id])
+    .filter(Boolean)
+    .map((symptom) => ({
+      symptom: symptom.label,
+      quickTest: symptom.quickTest,
+      matchedCauses: symptom.causes.flatMap((cause): string[] => {
+        if (cause === "calories") return calorieGap ? ["Not eating enough"] : [];
+        if (cause === "fat") return fatIssue ? ["Fat-to-protein balance"] : [];
+        if (cause === "hydration" || cause === "adaptation" || cause === "caffeine") return [];
+        const band = bandById.get(cause);
+        return band && flaggedBands.has(band)
+          ? [NUTRIENTS.find((n) => n.id === cause)?.label ?? cause]
+          : [];
+      }),
+    }));
+
   return {
     macros,
     nutrients,
-    flags: buildFlags(profile, macros, totals, parsed, (id) =>
-      nutrients.find((n) => n.id === id)?.band ?? "deficient",
-    ),
+    flags,
     parsed,
+    symptomInsights,
     redFlags,
   };
 }
