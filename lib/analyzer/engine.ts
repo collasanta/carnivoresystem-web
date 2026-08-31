@@ -147,7 +147,13 @@ function round(value: number): number {
   return Math.round(value * 100) / 100;
 }
 
-function buildFlags(profile: Profile, macros: MacroResult, totals: Totals, parsed: ParsedFood[]): Flag[] {
+function buildFlags(
+  profile: Profile,
+  macros: MacroResult,
+  totals: Totals,
+  parsed: ParsedFood[],
+  bandOf: (id: NutrientId) => Band,
+): Flag[] {
   const flags: Flag[] = [];
   const zinc = totals.nutrients.zinc ?? 0;
   const copper = totals.nutrients.copper ?? 0;
@@ -209,7 +215,11 @@ function buildFlags(profile: Profile, macros: MacroResult, totals: Totals, parse
     const food = FOOD_BY_SLUG[p.slug];
     return food?.group === "fish" || food?.group === "shellfish";
   });
-  if (!hasSeafood && profile.saltType !== "iodized") {
+  // Only worth raising when the number actually came up short. Eggs and aged
+  // cheese carry enough iodine to cover the day on their own, and a structural
+  // warning sitting above an "on target" bar reads as a tool contradicting
+  // itself rather than as a useful heads-up.
+  if (!hasSeafood && profile.saltType !== "iodized" && bandOf("iodine") !== "adequate") {
     flags.push({
       id: "iodine-blind-spot",
       severity: "warning",
@@ -309,7 +319,9 @@ export function analyze(profile: Profile, parsed: ParsedFood[]): Assessment {
   return {
     macros,
     nutrients,
-    flags: buildFlags(profile, macros, totals, parsed),
+    flags: buildFlags(profile, macros, totals, parsed, (id) =>
+      nutrients.find((n) => n.id === id)?.band ?? "deficient",
+    ),
     parsed,
     redFlags,
   };
