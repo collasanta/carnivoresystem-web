@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
 import { RED_FLAGS } from "@/lib/analyzer/redflags";
 import { SYMPTOMS } from "@/lib/analyzer/symptoms";
@@ -92,6 +93,47 @@ const SCREENS: Screen[] = [
   { id: "review", section: 4 },
 ];
 
+/** Thin-stroke line icons in the wellness-app idiom, hand-drawn to match. */
+function Ic({ children }: { children: React.ReactNode }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      className="size-[22px]"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      {children}
+    </svg>
+  );
+}
+
+const ICON = {
+  couch: <Ic><path d="M4 11V8a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v3" /><path d="M3 13a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v4H3z" /><path d="M5 17v2M19 17v2" /></Ic>,
+  walk: <Ic><circle cx="13" cy="4.6" r="1.7" /><path d="M10.2 20l2-5-1.6-3 1-4 2.8 1.4 2 2.6" /><path d="M13.4 14.6L15.8 20" /><path d="M10.6 12l-2.6 2.2" /></Ic>,
+  run: <Ic><circle cx="14.6" cy="4.6" r="1.7" /><path d="M8 20l3.2-5.2 1.4-4.4 3.4 1.6 2.8 1" /><path d="M12.6 10.4L9.2 9 7 12" /><path d="M12.2 15.2l2.6 4.8" /><path d="M4 15h2.4M3 18h2.4" /></Ic>,
+  dumbbell: <Ic><path d="M7 8.5v7M17 8.5v7M4.2 10.2v3.6M19.8 10.2v3.6M7 12h10" /></Ic>,
+  medal: <Ic><circle cx="12" cy="14.4" r="4.1" /><path d="M9 3.5l3 5 3-5" /><path d="M8.5 3.5h7" /></Ic>,
+  flame: <Ic><path d="M12 3.5s4.8 4.3 4.8 8.6a4.8 4.8 0 0 1-9.6 0c0-1.9.9-3.6 2.1-5 .4 1.2 1.2 1.9 2.1 2.2-.3-1.9 0-4 .6-5.8z" /></Ic>,
+  heart: <Ic><path d="M12 19.6s-6.8-4.4-6.8-9.5a3.9 3.9 0 0 1 6.8-2.5 3.9 3.9 0 0 1 6.8 2.5c0 5.1-6.8 9.5-6.8 9.5z" /></Ic>,
+  trophy: <Ic><path d="M8.2 4h7.6v4a3.8 3.8 0 0 1-7.6 0z" /><path d="M8.2 5H5.4a2.8 2.8 0 0 0 2.8 3.8M15.8 5h2.8a2.8 2.8 0 0 1-2.8 3.8" /><path d="M12 11.8v3.4M9.2 19.5h5.6M10.2 15.2h3.6" /></Ic>,
+  clock: <Ic><circle cx="12" cy="12" r="8" /><path d="M12 7.4v4.6l3 2" /></Ic>,
+  calendar: <Ic><rect x="4" y="6" width="16" height="14" rx="2.5" /><path d="M4 10.5h16M8.5 4v4M15.5 4v4" /></Ic>,
+  chart: <Ic><path d="M4 19.5h16" /><path d="M7 19.5v-5M12 19.5v-9M17 19.5V6.5" /></Ic>,
+  mountain: <Ic><path d="M3 19L9.4 8l3.9 6.4 2.2-3.4L21 19z" /></Ic>,
+  wave: <Ic><path d="M3 11.5c2-2.8 4-2.8 6 0s4 2.8 6 0 4-2.8 6 0" /><path d="M3 16.5c2-2.8 4-2.8 6 0s4 2.8 6 0 4-2.8 6 0" /></Ic>,
+  shaker: <Ic><path d="M9.2 9.5h5.6l1 10.5H8.2z" /><path d="M9.7 7a2.3 2.3 0 0 1 4.6 0v2.5H9.7z" /><path d="M11 13.5h.01M13.2 15.5h.01M11.5 17.5h.01" /></Ic>,
+  question: <Ic><circle cx="12" cy="12" r="8" /><path d="M9.8 9.6a2.2 2.2 0 1 1 3.5 1.8c-.8.6-1.3 1-1.3 2" /><path d="M12 16.6h.01" /></Ic>,
+  capsule: <Ic><rect x="4.5" y="9" width="15" height="6" rx="3" /><path d="M12 9v6" /></Ic>,
+  ban: <Ic><circle cx="12" cy="12" r="8" /><path d="M6.6 6.6l10.8 10.8" /></Ic>,
+  pizza: <Ic><path d="M4.5 5.5c4.8-1.9 10.2-1.9 15 0L12 20z" /><path d="M9.4 9h.01M14.2 8.4h.01M11.9 12.8h.01" /></Ic>,
+  shield: <Ic><path d="M12 3.5l7 2.8v4.9c0 4.8-3.4 7.8-7 9.8-3.6-2-7-5-7-9.8V6.3z" /><path d="M9.4 12l1.9 1.9 3.4-3.9" /></Ic>,
+  glass: <Ic><path d="M8 3.5h8l-.7 5.3A3.6 3.6 0 0 1 12 12a3.6 3.6 0 0 1-3.3-3.2z" /><path d="M12 12v7.5M9 20.5h6" /></Ic>,
+};
+
 const EXAMPLE = `Two meals a day. 500g ribeye for lunch, 400g of ground beef with three eggs for dinner. Butter on most things. Beef liver maybe once a fortnight. No fish. Coffee in the morning.`;
 
 const num = (value: string): number | null => {
@@ -125,6 +167,7 @@ function OptionCard({
   hint,
   multi,
   tone,
+  icon,
 }: {
   selected: boolean;
   onClick: () => void;
@@ -132,6 +175,7 @@ function OptionCard({
   hint?: string;
   multi?: boolean;
   tone?: "danger";
+  icon?: React.ReactNode;
 }) {
   return (
     <button
@@ -140,7 +184,7 @@ function OptionCard({
       aria-checked={selected}
       onClick={onClick}
       className={cn(
-        "flex w-full items-center gap-3.5 rounded-2xl border bg-card py-4 pr-4 pl-4 text-left shadow-[0_1px_2px_rgba(33,26,18,0.04)] transition-[border-color,background-color,box-shadow] duration-150",
+        "flex w-full items-center gap-3.5 rounded-2xl border bg-card py-3.5 pr-4 pl-3.5 text-left shadow-[0_1px_2px_rgba(33,26,18,0.04)] transition-[border-color,background-color,box-shadow,scale] duration-150 active:scale-[0.985]",
         "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cta",
         selected
           ? tone === "danger"
@@ -151,6 +195,14 @@ function OptionCard({
             : "border-line hover:border-linex hover:shadow-[0_3px_10px_rgba(33,26,18,0.06)]",
       )}
     >
+      {icon && (
+        <span
+          aria-hidden="true"
+          className="flex size-10 flex-none items-center justify-center rounded-full bg-tint text-walnut"
+        >
+          {icon}
+        </span>
+      )}
       <span className="flex-1">
         <span className={cn("block text-[14px] leading-snug text-ink", selected && "font-bold")}>
           {children}
@@ -219,7 +271,7 @@ function UnitPill<T extends string>({
   onChange: (value: T) => void;
 }) {
   return (
-    <div className="mx-auto mb-7 flex w-fit rounded-full border border-line bg-card p-[3px]">
+    <div className="mx-auto mb-6 flex w-fit rounded-full border border-line bg-tint p-[3px]">
       {options.map((option) => (
         <button
           key={option.value}
@@ -451,21 +503,63 @@ export function Quiz({
       {/* ---- screen ------------------------------------------------------ */}
       <div key={screen.id} className="animate-in fade-in slide-in-from-bottom-2 duration-300">
         {screen.id === "sex" && (
-          <>
-            <QuestionTitle sub="Iron reverses direction with this answer: an accumulation risk for men and post-menopausal women, a shortfall risk while menstruating.">
-              What&rsquo;s your sex?
-            </QuestionTitle>
-            <div className="flex flex-col gap-2.5">
-              <OptionCard selected={draft.sex === "male"} onClick={() => choose("sex", "male")}>Male</OptionCard>
-              <OptionCard selected={draft.sex === "female"} onClick={() => choose("sex", "female")}>Female</OptionCard>
+          <div className="text-center">
+            <p className="text-[10.5px] font-bold tracking-[0.22em] text-walnut uppercase">
+              The Carnivore System
+            </p>
+            <h2 className="mt-1.5 text-[clamp(25px,7vw,36px)] leading-[1.05] font-extrabold tracking-[-0.02em] uppercase">
+              Diet Analyzer
+            </h2>
+            <p className="mt-2.5 mb-6 text-[11.5px] font-semibold tracking-[0.18em] text-mute uppercase">
+              Choose your sex
+            </p>
+            <div className="mx-auto grid max-w-[430px] grid-cols-2 gap-3">
+              {(
+                [
+                  ["male", "Male", "/quiz/male.jpg"],
+                  ["female", "Female", "/quiz/female.jpg"],
+                ] as ["male" | "female", string, string][]
+              ).map(([value, label, src]) => (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => choose("sex", value)}
+                  className="group relative overflow-hidden rounded-2xl border border-line bg-card text-left shadow-[0_1px_3px_rgba(33,26,18,0.06)] transition-[box-shadow,scale] duration-150 hover:shadow-[0_6px_18px_rgba(33,26,18,0.12)] active:scale-[0.985] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cta"
+                >
+                  <Image
+                    src={src}
+                    alt=""
+                    width={640}
+                    height={853}
+                    priority
+                    className="aspect-[3/4] w-full object-cover transition-transform duration-300 group-hover:scale-[1.04]"
+                  />
+                  <span className="absolute inset-x-2 bottom-2 flex items-center justify-between rounded-full bg-cta py-2 pr-1.5 pl-4 text-[13px] font-bold text-card">
+                    {label}
+                    <span
+                      aria-hidden="true"
+                      className="flex size-7 items-center justify-center rounded-full bg-card text-cta"
+                    >
+                      <svg viewBox="0 0 24 24" className="size-[14px]" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M5 12h14M13 6l6 6-6 6" />
+                      </svg>
+                    </span>
+                  </span>
+                </button>
+              ))}
             </div>
-          </>
+            <p className="mx-auto mt-5 max-w-[380px] text-[10.5px] leading-relaxed text-mute">
+              By choosing your sex and continuing you agree that your answers are processed only to
+              build your report — nothing is stored, no account, no email. This answer also flips
+              how iron is scored: accumulation risk for men, shortfall risk while menstruating.
+            </p>
+          </div>
         )}
 
         {screen.id === "age" && (
           <>
             <QuestionTitle>How old are you?</QuestionTitle>
-            <div className="mx-auto max-w-[300px]">
+            <div className="mx-auto max-w-[340px] rounded-2xl border border-line bg-card p-6 shadow-[0_1px_3px_rgba(33,26,18,0.05)]">
               <BigInput
                 value={draft.age}
                 onChange={(v) => set("age", v)}
@@ -482,50 +576,48 @@ export function Quiz({
         {screen.id === "height" && (
           <>
             <QuestionTitle>How tall are you?</QuestionTitle>
-            <UnitPill
-              value={draft.units}
-              onChange={switchUnits}
-              options={[
-                { value: "imperial", label: "ft" },
-                { value: "metric", label: "cm" },
-              ]}
-            />
-            {metric ? (
-              <div className="mx-auto max-w-[300px]">
-                <BigInput
-                  value={draft.heightCm}
-                  onChange={(v) => set("heightCm", v)}
-                  unit="cm"
-                  placeholder="180"
-                  onEnter={() => ctaEnabled && forward(index, draft)}
-                />
-                <p className="mt-2 text-center text-[11.5px] text-mute">Please enter a value from 120 to 230 cm</p>
-              </div>
-            ) : (
-              <div className="mx-auto flex max-w-[340px] items-start justify-center gap-6">
-                <div>
+            <div className="mx-auto max-w-[340px] rounded-2xl border border-line bg-card p-6 shadow-[0_1px_3px_rgba(33,26,18,0.05)]">
+              <UnitPill
+                value={draft.units}
+                onChange={switchUnits}
+                options={[
+                  { value: "imperial", label: "ft" },
+                  { value: "metric", label: "cm" },
+                ]}
+              />
+              {metric ? (
+                <>
+                  <BigInput
+                    value={draft.heightCm}
+                    onChange={(v) => set("heightCm", v)}
+                    unit="cm"
+                    placeholder="180"
+                    onEnter={() => ctaEnabled && forward(index, draft)}
+                  />
+                  <p className="mt-2 text-center text-[11.5px] text-mute">Please enter a value from 120 to 230 cm</p>
+                </>
+              ) : (
+                <div className="flex items-start justify-center gap-6">
                   <BigInput value={draft.heightFt} onChange={(v) => set("heightFt", v)} unit="ft" placeholder="5" />
-                </div>
-                <div>
                   <BigInput value={draft.heightIn} onChange={(v) => set("heightIn", v)} unit="in" placeholder="11" onEnter={() => ctaEnabled && forward(index, draft)} />
                 </div>
-              </div>
-            )}
+              )}
+            </div>
           </>
         )}
 
         {screen.id === "weight" && (
           <>
             <QuestionTitle>What&rsquo;s your current weight?</QuestionTitle>
-            <UnitPill
-              value={draft.units}
-              onChange={switchUnits}
-              options={[
-                { value: "imperial", label: "lb" },
-                { value: "metric", label: "kg" },
-              ]}
-            />
-            <div className="mx-auto max-w-[300px]">
+            <div className="mx-auto max-w-[340px] rounded-2xl border border-line bg-card p-6 shadow-[0_1px_3px_rgba(33,26,18,0.05)]">
+              <UnitPill
+                value={draft.units}
+                onChange={switchUnits}
+                options={[
+                  { value: "imperial", label: "lb" },
+                  { value: "metric", label: "kg" },
+                ]}
+              />
               <BigInput
                 value={draft.weight}
                 onChange={(v) => set("weight", v)}
@@ -546,14 +638,14 @@ export function Quiz({
             <div className="flex flex-col gap-2.5">
               {(
                 [
-                  ["sedentary", "Mostly sitting", "Desk work, little walking"],
-                  ["light", "Lightly active", "On your feet part of the day, or 1–2 workouts a week"],
-                  ["moderate", "Moderately active", "3–5 workouts a week"],
-                  ["heavy", "Very active", "Hard training most days, or physical work"],
-                  ["athlete", "Athlete", "Two-a-days, competition volume"],
-                ] as [Activity, string, string][]
-              ).map(([value, label, hint]) => (
-                <OptionCard key={value} selected={draft.activity === value} onClick={() => choose("activity", value)} hint={hint}>
+                  ["sedentary", "Mostly sitting", "Desk work, little walking", ICON.couch],
+                  ["light", "Lightly active", "On your feet part of the day, or 1–2 workouts a week", ICON.walk],
+                  ["moderate", "Moderately active", "3–5 workouts a week", ICON.run],
+                  ["heavy", "Very active", "Hard training most days, or physical work", ICON.dumbbell],
+                  ["athlete", "Athlete", "Two-a-days, competition volume", ICON.medal],
+                ] as [Activity, string, string, React.ReactNode][]
+              ).map(([value, label, hint, icon]) => (
+                <OptionCard key={value} selected={draft.activity === value} onClick={() => choose("activity", value)} hint={hint} icon={icon}>
                   {label}
                 </OptionCard>
               ))}
@@ -567,12 +659,12 @@ export function Quiz({
             <div className="flex flex-col gap-2.5">
               {(
                 [
-                  ["lose", "Lose fat"],
-                  ["maintain", "Maintain and feel good"],
-                  ["gain", "Build muscle"],
-                ] as [Goal, string][]
-              ).map(([value, label]) => (
-                <OptionCard key={value} selected={draft.goal === value} onClick={() => choose("goal", value)}>
+                  ["lose", "Lose fat", ICON.flame],
+                  ["maintain", "Maintain and feel good", ICON.heart],
+                  ["gain", "Build muscle", ICON.trophy],
+                ] as [Goal, string, React.ReactNode][]
+              ).map(([value, label, icon]) => (
+                <OptionCard key={value} selected={draft.goal === value} onClick={() => choose("goal", value)} icon={icon}>
                   {label}
                 </OptionCard>
               ))}
@@ -588,13 +680,13 @@ export function Quiz({
             <div className="flex flex-col gap-2.5">
               {(
                 [
-                  ["under1m", "Under a month"],
-                  ["1to3m", "1–3 months"],
-                  ["3to12m", "3–12 months"],
-                  ["over1y", "Over a year"],
-                ] as [Tenure, string][]
-              ).map(([value, label]) => (
-                <OptionCard key={value} selected={draft.tenure === value} onClick={() => choose("tenure", value)}>
+                  ["under1m", "Under a month", ICON.clock],
+                  ["1to3m", "1–3 months", ICON.calendar],
+                  ["3to12m", "3–12 months", ICON.chart],
+                  ["over1y", "Over a year", ICON.medal],
+                ] as [Tenure, string, React.ReactNode][]
+              ).map(([value, label, icon]) => (
+                <OptionCard key={value} selected={draft.tenure === value} onClick={() => choose("tenure", value)} icon={icon}>
                   {label}
                 </OptionCard>
               ))}
@@ -610,13 +702,13 @@ export function Quiz({
             <div className="flex flex-col gap-2.5">
               {(
                 [
-                  ["pink", "Pink / Himalayan"],
-                  ["sea", "Sea salt"],
-                  ["iodized", "Iodised table salt"],
-                  ["unknown", "Not sure"],
-                ] as [SaltType, string][]
-              ).map(([value, label]) => (
-                <OptionCard key={value} selected={draft.saltType === value} onClick={() => choose("saltType", value)}>
+                  ["pink", "Pink / Himalayan", ICON.mountain],
+                  ["sea", "Sea salt", ICON.wave],
+                  ["iodized", "Iodised table salt", ICON.shaker],
+                  ["unknown", "Not sure", ICON.question],
+                ] as [SaltType, string, React.ReactNode][]
+              ).map(([value, label, icon]) => (
+                <OptionCard key={value} selected={draft.saltType === value} onClick={() => choose("saltType", value)} icon={icon}>
                   {label}
                 </OptionCard>
               ))}
@@ -629,7 +721,7 @@ export function Quiz({
             <QuestionTitle sub="A rounded teaspoon is about 6g. Guess if you have to — a guess is far better than leaving it out.">
               How much salt do you add per day?
             </QuestionTitle>
-            <div className="mx-auto max-w-[300px]">
+            <div className="mx-auto max-w-[340px] rounded-2xl border border-line bg-card p-6 shadow-[0_1px_3px_rgba(33,26,18,0.05)]">
               <BigInput
                 value={draft.saltGrams}
                 onChange={(v) => set("saltGrams", v)}
@@ -645,7 +737,14 @@ export function Quiz({
         {screen.id === "trust" && (
           <div className="text-center">
             <QuestionTitle>Your numbers are computed, not guessed</QuestionTitle>
-            <div className="mx-auto max-w-[420px] rounded-2xl border border-line bg-card p-5 text-left shadow-[0_1px_2px_rgba(33,26,18,0.04)]">
+            <Image
+              src="/quiz/steak.jpg"
+              alt=""
+              width={800}
+              height={500}
+              className="mx-auto aspect-[16/10] w-full max-w-[420px] rounded-2xl object-cover shadow-[0_6px_20px_rgba(33,26,18,0.12)]"
+            />
+            <div className="mx-auto mt-4 max-w-[420px] rounded-2xl bg-tint p-5 text-left">
               <p className="text-[13.5px] leading-relaxed text-ink">
                 Next comes the part that matters — what you actually eat. A model reads your
                 description, but every vitamin and mineral figure is computed from a USDA
@@ -747,8 +846,8 @@ export function Quiz({
               Do you take any supplements?
             </QuestionTitle>
             <div className="flex flex-col gap-2.5">
-              <OptionCard selected={draft.takesSupplements === "yes"} onClick={() => choose("takesSupplements", "yes")}>Yes</OptionCard>
-              <OptionCard selected={draft.takesSupplements === "no"} onClick={() => choose("takesSupplements", "no")}>No</OptionCard>
+              <OptionCard icon={ICON.capsule} selected={draft.takesSupplements === "yes"} onClick={() => choose("takesSupplements", "yes")}>Yes</OptionCard>
+              <OptionCard icon={ICON.ban} selected={draft.takesSupplements === "no"} onClick={() => choose("takesSupplements", "no")}>No</OptionCard>
             </div>
           </>
         )}
@@ -776,8 +875,8 @@ export function Quiz({
               Any cheat meals or time off the diet?
             </QuestionTitle>
             <div className="flex flex-col gap-2.5">
-              <OptionCard selected={draft.hadOffDays === "yes"} onClick={() => choose("hadOffDays", "yes")}>Yes</OptionCard>
-              <OptionCard selected={draft.hadOffDays === "no"} onClick={() => choose("hadOffDays", "no")}>No, strict</OptionCard>
+              <OptionCard icon={ICON.pizza} selected={draft.hadOffDays === "yes"} onClick={() => choose("hadOffDays", "yes")}>Yes</OptionCard>
+              <OptionCard icon={ICON.shield} selected={draft.hadOffDays === "no"} onClick={() => choose("hadOffDays", "no")}>No, strict</OptionCard>
             </div>
           </>
         )}
@@ -804,12 +903,13 @@ export function Quiz({
             <QuestionTitle>Do you drink alcohol?</QuestionTitle>
             <div className="flex flex-col gap-2.5">
               <OptionCard
+                icon={ICON.glass}
                 selected={draft.alcohol !== "none"}
                 onClick={() => choose("alcohol", draft.alcohol === "none" ? "occasional" : draft.alcohol)}
               >
                 Yes
               </OptionCard>
-              <OptionCard selected={draft.alcohol === "none"} onClick={() => choose("alcohol", "none")}>No</OptionCard>
+              <OptionCard icon={ICON.ban} selected={draft.alcohol === "none"} onClick={() => choose("alcohol", "none")}>No</OptionCard>
             </div>
           </>
         )}

@@ -25,25 +25,8 @@ const PROMISES = [
 export default function AnalyzerPage() {
   return (
     <div className="w-full max-w-[560px]">
-      <header className="text-center">
-        <div className="flex items-center justify-center gap-2 text-[11px] font-semibold tracking-[0.16em] text-mute uppercase">
-          <span
-            aria-hidden="true"
-            className="size-[7px] flex-none animate-pulse-soft rounded-full bg-walnut motion-reduce:animate-none"
-          />
-          Free tool
-        </div>
+      <h1 className="sr-only">Carnivore Diet Analyzer</h1>
 
-        <h1 className="mt-3 text-[clamp(30px,8vw,42px)] leading-[1.05] font-extrabold tracking-[-0.03em] text-balance">
-          Diet <span className="text-walnut">Analyzer</span>
-        </h1>
-
-        <p className="mx-auto mt-3 mb-9 max-w-[46ch] text-[13.5px] leading-relaxed text-mute">
-          Everyone eating this way hits the same question around month two: what am I missing?
-          Describe what you actually eat and find out — nutrient by nutrient, with the food that
-          fixes each gap.
-        </p>
-      </header>
 
       <Analyzer />
 

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Analytics } from "@vercel/analytics/next";
+import { SiteHeader } from "@/components/site-header";
 import { Plus_Jakarta_Sans } from "next/font/google";
 import "./globals.css";
 
@@ -24,8 +25,9 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="en" className={`${jakarta.variable} h-full antialiased`}>
-      <body className="flex min-h-svh flex-col items-center px-5 pt-12 pb-10 font-[family-name:var(--font-jakarta)] text-ink">
-        {children}
+      <body className="min-h-svh font-[family-name:var(--font-jakarta)] text-ink">
+        <SiteHeader />
+        <div className="flex flex-col items-center px-5 pt-8 pb-10">{children}</div>
         <Analytics />
       </body>
     </html>
