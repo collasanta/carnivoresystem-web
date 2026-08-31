@@ -17,20 +17,8 @@ export const metadata: Metadata = {
 
 const PROMISES = [
   {
-    head: "The numbers are computed, not guessed",
-    body: "Intakes come from a USDA composition table and targets from published reference intakes, both in plain code. Ask twice and you get the same answer. A model reads your description and writes the commentary; it never invents a milligram.",
-  },
-  {
     head: "Built for this diet, not adapted to it",
     body: "Sodium is scored as too little, not too much, because ketosis makes you dump it. Fibre is never marked missing. B12, zinc and niacin are shown as wins. Iron reverses direction depending on who you are.",
-  },
-  {
-    head: "Food first, bottles last",
-    body: "Every fix names an amount you could eat tomorrow. Where food genuinely cannot close a gap — magnesium is the honest case — it says so instead of pretending.",
-  },
-  {
-    head: "Honest about what is not known",
-    body: "Much of what circulates about this diet is anecdote. Where the evidence is thin, the report marks it thin rather than filling the gap with confidence.",
   },
 ];
 
