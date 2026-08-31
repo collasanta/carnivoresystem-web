@@ -27,12 +27,12 @@ export const TARGETS: Record<NutrientId, TargetSpec> = {
   },
   vitaminK1: { male: 120, female: 90 },
   vitaminK2: {
-    male: 100,
-    female: 100,
+    male: 35,
+    female: 35,
     carnivore: {
-      male: 100,
-      female: 100,
-      note: "There is no DRI for K2. 100mcg sits at the low end of the 90–360mcg range used in intervention trials.",
+      male: 35,
+      female: 35,
+      note: "There is no DRI for K2. 35mcg reflects the intake above which the Rotterdam cohort saw lower coronary disease incidence, rather than the 90–360mcg doses used in supplement trials. Two caveats pull in opposite directions: our figures count MK-4 only, because the USDA study behind them put MK-6 through MK-10 out of scope — so aged cheese and fermented dairy are understated here. Treat this number as the most uncertain one in the report.",
     },
   },
   vitaminE: {
@@ -176,9 +176,11 @@ export function energyTarget(profile: Profile): number {
 /** Sodium and iodine delivered by added salt, which is not modelled as a food. */
 export function saltContribution(profile: Profile): { sodium: number; iodine: number } {
   const grams = Math.max(0, profile.saltGramsPerDay);
-  // Sodium is ~393mg per gram of salt regardless of colour. Iodine is not:
-  // iodised salt carries 45–77mcg/g, pink and sea salt carry almost none.
+  // Sodium is ~393mg per gram of salt regardless of colour. Iodine is not.
+  // Measured in the USDA/FDA/ODS iodine database: iodised table salt averages
+  // 52mcg/g across 26 samples, while non-iodised sea salt averages 0.015mcg/g
+  // across 28 — not "a little less", but three orders of magnitude less.
   const iodinePerGram =
-    profile.saltType === "iodized" ? 60 : profile.saltType === "unknown" ? 20 : 0.2;
+    profile.saltType === "iodized" ? 52 : profile.saltType === "unknown" ? 20 : 0.015;
   return { sodium: Math.round(grams * 393), iodine: Math.round(grams * iodinePerGram) };
 }

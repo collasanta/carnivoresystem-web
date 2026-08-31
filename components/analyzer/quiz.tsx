@@ -228,9 +228,9 @@ export function Quiz({
                 ]}
               />
               <p className="mt-2 text-[11px] leading-relaxed text-salt">
-                The highest-leverage question here. Iodised salt carries 45–77mcg of iodine per
-                gram; pink salt carries under 0.1. Switching one for the other quietly removes
-                your only reliable source.
+                The highest-leverage question here. Iodised salt averages 52mcg of iodine per
+                gram; non-iodised sea salt averages 0.015. Switching one for the other quietly
+                removes your only reliable source.
               </p>
             </div>
             <div>

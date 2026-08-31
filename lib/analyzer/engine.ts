@@ -215,7 +215,7 @@ function buildFlags(profile: Profile, macros: MacroResult, totals: Totals, parse
       severity: "warning",
       title: "No seafood, and no iodised salt",
       detail:
-        "Iodine intake on this diet is decided almost entirely by which salt is in your shaker. Pink and sea salt carry under 0.1mcg per gram; iodised salt carries 45–77mcg. Swapping one for the other removes the only reliable source without replacing it, and the thyroid takes two to three months to show it.",
+        "Iodine intake on this diet is decided almost entirely by which salt is in your shaker. Iodised table salt averages 52mcg per gram across 26 measured samples; non-iodised sea salt averages 0.015 across 28. That is not a smaller amount, it is three orders of magnitude less — and the thyroid takes two to three months to show it.",
     });
   }
 

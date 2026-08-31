@@ -28,7 +28,7 @@ export const NUTRIENTS: Nutrient[] = [
     tier: "gap",
     evidenceGap: "medium",
     evidenceHarm: "low",
-    why: "The animal form, concentrated in egg yolk, butter, chicken fat and organs. A lean muscle-only diet gets close to none. Tracked separately from K1, which behaves differently.",
+    why: "The animal form. Dark chicken meat and skin lead by a wide margin, then egg yolk, chicken liver and aged cheese. Tracked separately from K1, which behaves differently. Our figures count MK-4 only, so aged cheese is understated here.",
   },
   {
     id: "vitaminK1",
@@ -127,7 +127,7 @@ export const NUTRIENTS: Nutrient[] = [
     tier: "gap",
     evidenceGap: "high",
     evidenceHarm: "medium",
-    why: "Almost entirely decided by which salt is in the shaker. Swapping table salt for pink or sea salt removes the only reliable source without replacing it — and pink salt carries under 0.1mcg per gram.",
+    why: "Almost entirely decided by which salt is in the shaker. Iodised table salt averages 52mcg per gram; non-iodised sea salt averages 0.015. Swapping one for the other does not reduce your iodine, it removes it.",
   },
   {
     id: "epaDha",
