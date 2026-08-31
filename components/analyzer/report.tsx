@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { NUTRIENT_BY_ID } from "@/lib/analyzer/nutrients";
 import type { AnalysisReport, Band, NutrientResult } from "@/lib/analyzer/types";
 import { cn } from "@/lib/utils";
 import { NutrientBar } from "./nutrient-bar";
@@ -99,6 +100,8 @@ function NutrientCard({
 export function Report({ report, onRestart }: { report: AnalysisReport; onRestart: () => void }) {
   const { assessment, narrative, degraded } = report;
   const { macros, nutrients, flags, parsed, redFlags, symptomInsights } = assessment;
+  const supplements = assessment.supplements ?? [];
+  const unquantified = assessment.unquantifiedSupplements ?? [];
   const [copied, setCopied] = useState(false);
 
   const noteById = new Map((narrative?.notes ?? []).map((n) => [n.id, n]));
@@ -263,6 +266,40 @@ export function Report({ report, onRestart }: { report: AnalysisReport; onRestar
               </li>
             ))}
           </ul>
+          {(supplements.length > 0 || unquantified.length > 0) && (
+            <>
+              <div className="mt-3 text-[9px] tracking-[0.18em] text-salt uppercase">
+                Supplements
+              </div>
+              <ul className="mt-1.5 flex flex-wrap gap-1.5">
+                {supplements.map((s, index) => (
+                  <li
+                    key={`${s.nutrientId}-${index}`}
+                    className="border border-ash px-2 py-1 text-[11px] text-bone"
+                  >
+                    {s.label} &middot; {s.amountPerDay}
+                    {NUTRIENT_BY_ID[s.nutrientId].unit === "IU"
+                      ? " IU"
+                      : NUTRIENT_BY_ID[s.nutrientId].unit}
+                    /day{s.estimated ? " (est.)" : ""}
+                  </li>
+                ))}
+                {unquantified.map((u, index) => (
+                  <li
+                    key={`${u.label}-${index}`}
+                    className="border border-warn px-2 py-1 text-[11px] text-warn"
+                    title={u.reason}
+                  >
+                    {u.label} &middot; not counted
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-2 text-[11px] leading-relaxed text-salt">
+                Counted supplements are already inside every bar below. Anything marked
+                &ldquo;not counted&rdquo; has no stated amounts, so it isn&rsquo;t.
+              </p>
+            </>
+          )}
           <p className="mt-2.5 text-[11px] leading-relaxed text-salt">
             Weekly foods are averaged across seven days, so liver once a fortnight shows up as a
             small daily number. If anything here is wrong, every number below is wrong with it

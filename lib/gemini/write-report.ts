@@ -1,3 +1,4 @@
+import { NUTRIENT_BY_ID } from "@/lib/analyzer/nutrients";
 import { SYMPTOM_BY_ID } from "@/lib/analyzer/symptoms";
 import type { Assessment, Narrative, Profile } from "@/lib/analyzer/types";
 import { ThinkingLevel } from "@google/genai";
@@ -67,6 +68,20 @@ exclamation marks. Do not open with "Great news" or similar.
 WHAT YOU MAY SAY
 - Only discuss nutrients present in the assessment you are given, using their
   exact ids. Never invent a nutrient, a number, or a food's content.
+- Supplement amounts in "supplementsCounted" are ALREADY included in every
+  intake figure. Never recommend adding something the person already takes at a
+  counted dose. When a nutrient reads adequate only because of a supplement,
+  you may note the food that would replace it, once, without pressure.
+- Supplements in "supplementsNotCounted" are absent from the numbers — if one
+  plausibly covers a flagged gap (a multivitamin against a small folate gap),
+  soften that nutrient's comment accordingly rather than alarming.
+- "offDays" describes cheat meals or time off the diet. It is context for
+  interpreting symptoms and tenure, not part of the daily numbers — a weekly
+  carb night can explain sleep or digestion patterns, so use it where relevant
+  and ignore it where not. No moralising about it.
+- If alcohol is "daily" or "heavy" the assessment already carries a flag; you
+  may connect it to relevant symptoms (sleep, gout, magnesium, B1) at most once
+  in the report. If it is less than that, leave it alone entirely.
 - Never restate a number that contradicts the assessment.
 - Fixes must be food first, with a concrete amount: "100g of chicken liver twice
   a week" beats "eat more organ meats". Name a supplement only where food
@@ -166,8 +181,19 @@ export async function writeReport(
       monthsOnCarnivore: profile.tenure,
       saltType: profile.saltType,
       saltGramsPerDay: profile.saltGramsPerDay,
-      supplementsAlreadyTaking: profile.supplements || "none reported",
+      alcohol: profile.alcohol,
+      offDays: profile.offDays || "none reported",
+      supplementsText: profile.supplements || "none reported",
     },
+    supplementsCounted: assessment.supplements.map(
+      (s) =>
+        `${s.label}: ${s.amountPerDay}${NUTRIENT_BY_ID[s.nutrientId].unit} of ${
+          NUTRIENT_BY_ID[s.nutrientId].label
+        } per day${s.estimated ? " (estimated)" : ""}`,
+    ),
+    supplementsNotCounted: assessment.unquantifiedSupplements.map(
+      (u) => `${u.label} — ${u.reason}`,
+    ),
     macros: assessment.macros,
     structuralFlags: assessment.flags.map((f) => ({ id: f.id, title: f.title })),
     needsComment,

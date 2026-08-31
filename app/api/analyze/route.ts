@@ -39,6 +39,7 @@ const ACTIVITIES = ["sedentary", "light", "moderate", "heavy", "athlete"];
 const GOALS = ["lose", "maintain", "gain"];
 const TENURES = ["under1m", "1to3m", "3to12m", "over1y"];
 const SALTS = ["iodized", "pink", "sea", "none", "unknown"];
+const ALCOHOL = ["none", "occasional", "weekly", "daily", "heavy"];
 
 function clamp(value: unknown, min: number, max: number, fallback: number): number {
   const n = typeof value === "number" ? value : Number(value);
@@ -79,6 +80,8 @@ function validate(body: Record<string, unknown>): Profile | string {
     symptoms,
     otherSymptoms: typeof body.otherSymptoms === "string" ? body.otherSymptoms.slice(0, 800) : "",
     supplements: typeof body.supplements === "string" ? body.supplements.slice(0, 800) : "",
+    offDays: typeof body.offDays === "string" ? body.offDays.slice(0, 500) : "",
+    alcohol: pick(body.alcohol, ALCOHOL, "none"),
     dietText,
   };
 }
@@ -107,9 +110,11 @@ export async function POST(request: Request) {
 
   const startedAt = Date.now();
   try {
-    const parsed = await parseDiet(profile);
+    const { foods: parsed, supplements, unquantifiedSupplements } = await parseDiet(profile);
     const parsedAt = Date.now();
-    console.log(`[analyze] stage1 parse ${parsedAt - startedAt}ms, ${parsed.length} foods`);
+    console.log(
+      `[analyze] stage1 parse ${parsedAt - startedAt}ms, ${parsed.length} foods, ${supplements.length} supplements`,
+    );
     if (!parsed.length) {
       return json(
         { error: "We couldn't recognise any foods in that. Try naming the cuts you eat and roughly how much." },
@@ -117,7 +122,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const assessment = analyze(profile, parsed);
+    const assessment = analyze(profile, parsed, supplements, unquantifiedSupplements);
 
     // The engine's output is the product. If the writer fails, the report still
     // ships with every number intact and simply without the prose.

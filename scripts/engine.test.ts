@@ -36,6 +36,7 @@ const base: Profile = {
   saltType: "pink",
   saltGramsPerDay: 8,
   symptoms: [],
+  alcohol: "none",
   dietText: "test",
 };
 
@@ -159,6 +160,52 @@ const bandOf = (r: ReturnType<typeof analyze>, id: string): Band =>
     calcium.intake > 950 && calcium.intake < 1060,
     String(calcium.intake),
   );
+}
+
+// --- H: supplements count toward intake, capped against hallucination -------
+{
+  const diet = [food("beef-ribeye", 500), food("beef-ground-8020", 400)];
+  const withMag = analyze(base, diet, [
+    { nutrientId: "magnesium", label: "Magnesium glycinate", amountPerDay: 400, source: "" },
+  ]);
+  check("H 400mg magnesium flips the band", bandOf(withMag, "magnesium") === "adequate");
+  const mag = withMag.nutrients.find((n) => n.id === "magnesium")!;
+  check(
+    "H supplement shows up as a source",
+    mag.topSources.some((s) => s.label.includes("(supplement)")),
+  );
+  const absurd = analyze(base, diet, [
+    { nutrientId: "vitaminD", label: "D3", amountPerDay: 1_000_000, source: "" },
+  ]);
+  const vitD = absurd.nutrients.find((n) => n.id === "vitaminD")!;
+  // 16,000 IU is the cap (4× UL); the small remainder is the food itself.
+  check("H hallucinated megadose is capped", vitD.intake <= 16100, String(vitD.intake));
+}
+
+// --- I: unquantified supplements warn instead of guessing -------------------
+{
+  const r = analyze(base, [food("beef-ribeye", 500)], [], [
+    { label: "a multivitamin", reason: "blend not stated" },
+  ]);
+  check(
+    "I unquantified supplement raises the flag",
+    r.flags.some((f) => f.id === "unquantified-supplements"),
+  );
+}
+
+// --- J: alcohol flag fires only at daily and above --------------------------
+{
+  const diet = [food("beef-ribeye", 500)];
+  check(
+    "J weekly drinking does not flag",
+    !analyze({ ...base, alcohol: "weekly" }, diet).flags.some((f) => f.id === "alcohol"),
+  );
+  const daily = analyze({ ...base, alcohol: "daily" }, diet);
+  check("J daily drinking flags as warning",
+    daily.flags.some((f) => f.id === "alcohol" && f.severity === "warning"));
+  const heavy = analyze({ ...base, alcohol: "heavy" }, diet);
+  check("J heavy drinking flags as danger",
+    heavy.flags.some((f) => f.id === "alcohol" && f.severity === "danger"));
 }
 
 console.log(failures ? `\n${failures} failure(s)` : "\nall green");

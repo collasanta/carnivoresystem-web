@@ -1,6 +1,6 @@
 import { FOOD_BY_SLUG } from "./foods";
 import { NUTRIENTS } from "./nutrients";
-import { energyTarget, resolveTarget, saltContribution } from "./dri";
+import { TARGETS, energyTarget, resolveTarget, saltContribution } from "./dri";
 import { RED_FLAG_BY_ID } from "./redflags";
 import { SYMPTOM_BY_ID } from "./symptoms";
 import type {
@@ -12,7 +12,9 @@ import type {
   NutrientId,
   NutrientResult,
   ParsedFood,
+  ParsedSupplement,
   Profile,
+  UnquantifiedSupplement,
 } from "./types";
 
 interface Totals {
@@ -29,7 +31,34 @@ interface Totals {
   matchedGrams: number;
 }
 
-function accumulate(profile: Profile, parsed: ParsedFood[]): Totals {
+/**
+ * Ceiling on what a single supplement entry may contribute per day.
+ *
+ * The parser is a model, and a hallucinated "50,000mg magnesium" would flip a
+ * red bar green. Caps sit far above any real label dose (people do take 10,000
+ * IU of D and 1,000mcg of B12) but below absurdity. Derived from the UL where
+ * one exists; overridden where the UL-free nutrients have well-known megadoses.
+ */
+const SUPPLEMENT_CAP_OVERRIDES: Partial<Record<NutrientId, number>> = {
+  b12: 5000,
+  vitaminK2: 1500,
+  biotin: 10000,
+  vitaminK1: 2000,
+  epaDha: 6000,
+  potassium: 5000,
+  sodium: 10000,
+};
+
+function supplementCap(id: NutrientId): number {
+  const spec = TARGETS[id];
+  return SUPPLEMENT_CAP_OVERRIDES[id] ?? (spec.limit ? spec.limit * 4 : spec.male * 50);
+}
+
+function accumulate(
+  profile: Profile,
+  parsed: ParsedFood[],
+  supplements: ParsedSupplement[],
+): Totals {
   const totals: Totals = {
     kcal: 0,
     protein: 0,
@@ -74,6 +103,18 @@ function accumulate(profile: Profile, parsed: ParsedFood[]): Totals {
       totals.nutrients[id] = (totals.nutrients[id] ?? 0) + amount;
       (totals.sources[id] ??= []).push({ label: food.label, amount });
     }
+  }
+
+  for (const supplement of supplements) {
+    const raw = supplement.amountPerDay;
+    if (!Number.isFinite(raw) || raw <= 0) continue;
+    const amount = Math.min(raw, supplementCap(supplement.nutrientId));
+    totals.nutrients[supplement.nutrientId] =
+      (totals.nutrients[supplement.nutrientId] ?? 0) + amount;
+    (totals.sources[supplement.nutrientId] ??= []).push({
+      label: `${supplement.label} (supplement)`,
+      amount,
+    });
   }
 
   // Added salt is carried on the profile rather than parsed from the diet text,
@@ -250,6 +291,19 @@ function buildFlags(
     });
   }
 
+  if (profile.alcohol === "daily" || profile.alcohol === "heavy") {
+    flags.push({
+      id: "alcohol",
+      severity: profile.alcohol === "heavy" ? "danger" : "warning",
+      title:
+        profile.alcohol === "heavy"
+          ? "Three or more drinks most days"
+          : "Drinking most days",
+      detail:
+        "Alcohol works directly against this diet's weak points: it increases urinary losses of magnesium and zinc, impairs thiamine (B1) absorption — the two B vitamins this diet is already shortest on — raises uric acid exactly when ketosis is doing the same, and fragments sleep. None of the intake numbers here are adjusted for it; treat every magnesium, B1 and zinc figure below as optimistic.",
+    });
+  }
+
   const unmatched = parsed.filter((p) => p.unmatched);
   if (unmatched.length) {
     flags.push({
@@ -269,8 +323,13 @@ function buildFlags(
  * The deterministic core. Same inputs always produce the same numbers, and no
  * part of this file talks to a network or a model.
  */
-export function analyze(profile: Profile, parsed: ParsedFood[]): Assessment {
-  const totals = accumulate(profile, parsed);
+export function analyze(
+  profile: Profile,
+  parsed: ParsedFood[],
+  supplements: ParsedSupplement[] = [],
+  unquantifiedSupplements: UnquantifiedSupplement[] = [],
+): Assessment {
+  const totals = accumulate(profile, parsed, supplements);
   const linoleicG = totals.linoleic / 1000;
 
   const kcalIntake = totals.kcal;
@@ -330,6 +389,21 @@ export function analyze(profile: Profile, parsed: ParsedFood[]): Assessment {
     nutrients.find((n) => n.id === id)?.band ?? "deficient",
   );
 
+  if (unquantifiedSupplements.length) {
+    flags.push({
+      id: "unquantified-supplements",
+      severity: "warning",
+      title: `${unquantifiedSupplements.length} supplement${
+        unquantifiedSupplements.length > 1 ? "s" : ""
+      } we couldn't count`,
+      detail: `We couldn't quantify ${unquantifiedSupplements
+        .map((u) => u.label)
+        .join(
+          ", ",
+        )}, so their contents are NOT in the numbers below. Name the amounts on the label — "magnesium 400mg", "D3 5000 IU" — and run it again to include them.`,
+    });
+  }
+
   const redFlags = profile.symptoms
     .map((id) => RED_FLAG_BY_ID[id])
     .filter(Boolean)
@@ -363,6 +437,8 @@ export function analyze(profile: Profile, parsed: ParsedFood[]): Assessment {
     nutrients,
     flags,
     parsed,
+    supplements,
+    unquantifiedSupplements,
     symptomInsights,
     redFlags,
   };

@@ -32,7 +32,9 @@ function toPayload(draft: Draft) {
     saltGramsPerDay: toNumber(draft.saltGrams, 6),
     symptoms: draft.symptoms,
     otherSymptoms: draft.otherSymptoms,
-    supplements: draft.supplements,
+    supplements: draft.takesSupplements === "yes" ? draft.supplements : "",
+    offDays: draft.hadOffDays === "yes" ? draft.offDays : "",
+    alcohol: draft.alcohol,
     dietText: draft.dietText,
   };
 }
@@ -86,8 +88,15 @@ export function Analyzer() {
       // Deliberate one-time synchronous setState: reading localStorage during
       // render would mismatch the server HTML, so the saved draft has to land
       // in a post-hydration effect. It runs once and cannot cascade.
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      if (raw) setDraft({ ...EMPTY_DRAFT, ...(JSON.parse(raw) as Partial<Draft>) });
+      if (raw) {
+        const saved = JSON.parse(raw) as Partial<Draft>;
+        const merged = { ...EMPTY_DRAFT, ...saved };
+        // Drafts saved before the yes/no gates existed carry text but no
+        // answer; infer "yes" so the text is not silently dropped.
+        if (!saved.takesSupplements && merged.supplements.trim()) merged.takesSupplements = "yes";
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setDraft(merged);
+      }
     } catch {
       /* storage unavailable — the quiz still works, it just forgets */
     }

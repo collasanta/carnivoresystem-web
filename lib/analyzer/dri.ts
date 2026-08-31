@@ -46,7 +46,16 @@ export const TARGETS: Record<NutrientId, TargetSpec> = {
     },
   },
   vitaminA: { male: 900, female: 700, limit: 3000 },
-  vitaminD: { male: 600, female: 600, limit: 4000 },
+  vitaminD: {
+    male: 600,
+    female: 600,
+    limit: 4000,
+    carnivore: {
+      male: 600,
+      female: 600,
+      note: "The 4,000 IU upper limit is the IOM's, and a 5,000 IU capsule — the most common dose sold — sits just over it. Trials found no toxicity up to 10,000 IU/day, which is the Endocrine Society's no-effect level, so slightly over the IOM line is not an alarm. Sustained doses above 4,000 IU do deserve a periodic 25-OH-D blood test rather than faith.",
+    },
+  },
   b1: { male: 1.2, female: 1.1 },
   b2: { male: 1.3, female: 1.1 },
   // The 35mg UL applies to supplemental nicotinic acid, not to niacin from food.

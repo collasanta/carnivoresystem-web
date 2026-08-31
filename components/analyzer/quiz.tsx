@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { RED_FLAGS } from "@/lib/analyzer/redflags";
 import { SYMPTOMS } from "@/lib/analyzer/symptoms";
-import type { Activity, Goal, SaltType, Sex, Tenure } from "@/lib/analyzer/types";
+import type { Activity, AlcoholLevel, Goal, SaltType, Sex, Tenure } from "@/lib/analyzer/types";
 import { cn } from "@/lib/utils";
 import { ChoiceGroup, Label, TextArea, TextInput, Toggle } from "./fields";
 
@@ -29,7 +29,11 @@ export interface Draft {
   dietText: string;
   symptoms: string[];
   otherSymptoms: string;
+  takesSupplements: "yes" | "no";
   supplements: string;
+  hadOffDays: "yes" | "no";
+  offDays: string;
+  alcohol: AlcoholLevel;
 }
 
 export const EMPTY_DRAFT: Draft = {
@@ -48,10 +52,14 @@ export const EMPTY_DRAFT: Draft = {
   dietText: "",
   symptoms: [],
   otherSymptoms: "",
+  takesSupplements: "no",
   supplements: "",
+  hadOffDays: "no",
+  offDays: "",
+  alcohol: "none",
 };
 
-const STEPS = ["Body", "Context", "Your food", "Symptoms", "Supplements"] as const;
+const STEPS = ["Body", "Context", "Your food", "Symptoms", "Lifestyle"] as const;
 
 const EXAMPLE = `Two meals a day. 500g ribeye for lunch, 400g of ground beef with three eggs for dinner. Butter on most things. Beef liver maybe once a fortnight. No fish. Coffee in the morning.`;
 
@@ -419,21 +427,99 @@ export function Quiz({
         )}
 
         {step === 4 && (
-          <div className="flex flex-col gap-3">
-            <Label htmlFor="supps">What are you already taking?</Label>
-            <p className="-mt-1 text-[11px] leading-relaxed text-salt">
-              Without this the report will hand you back things you already take, which is a fast
-              way to make a good analysis look careless. Write &ldquo;none&rdquo; if that is the
-              answer.
-            </p>
-            <TextArea
-              id="supps"
-              rows={4}
-              placeholder="Magnesium glycinate 400mg at night, vitamin D 4000 IU, electrolytes."
-              value={draft.supplements}
-              onChange={(e) => set("supplements", e.target.value)}
-            />
-            <p className="text-[11px] leading-relaxed text-salt">
+          <div className="flex flex-col gap-6">
+            <div className="flex flex-col gap-3">
+              <ChoiceGroup
+                legend="Do you take any supplements?"
+                value={draft.takesSupplements}
+                onChange={(v) => set("takesSupplements", v)}
+                choices={[
+                  { value: "no", label: "No" },
+                  { value: "yes", label: "Yes" },
+                ]}
+              />
+              {draft.takesSupplements === "yes" && (
+                <>
+                  <Label htmlFor="supps">What, and how much?</Label>
+                  <p className="-mt-1 text-[11px] leading-relaxed text-salt">
+                    Quote the label &mdash; &ldquo;magnesium glycinate 400mg&rdquo;, &ldquo;D3
+                    5000 IU&rdquo;. Anything with a stated amount is counted into your numbers;
+                    a &ldquo;multivitamin&rdquo; with no amounts can only be noted, not counted.
+                  </p>
+                  <TextArea
+                    id="supps"
+                    rows={4}
+                    placeholder="Magnesium glycinate 400mg at night, vitamin D 5000 IU, LMNT most mornings."
+                    value={draft.supplements}
+                    onChange={(e) => set("supplements", e.target.value)}
+                  />
+                </>
+              )}
+            </div>
+
+            <div className="flex flex-col gap-3 border-t border-edge pt-5">
+              <ChoiceGroup
+                legend="Any cheat meals or time off the diet?"
+                value={draft.hadOffDays}
+                onChange={(v) => set("hadOffDays", v)}
+                choices={[
+                  { value: "no", label: "No, strict" },
+                  { value: "yes", label: "Yes" },
+                ]}
+              />
+              {draft.hadOffDays === "yes" && (
+                <>
+                  <Label htmlFor="offdays">Roughly what and how often?</Label>
+                  <p className="-mt-1 text-[11px] leading-relaxed text-salt">
+                    &ldquo;Pizza most Saturdays&rdquo;, &ldquo;two weeks off over the
+                    holidays&rdquo;. This is context for reading your symptoms and timeline
+                    &mdash; a weekly carb night changes what &ldquo;three months strict&rdquo;
+                    means. It is not added to the daily numbers.
+                  </p>
+                  <TextArea
+                    id="offdays"
+                    rows={3}
+                    placeholder="A burger with the bun maybe twice a month. One week fully off in July."
+                    value={draft.offDays}
+                    onChange={(e) => set("offDays", e.target.value)}
+                  />
+                </>
+              )}
+            </div>
+
+            <div className="flex flex-col gap-3 border-t border-edge pt-5">
+              <ChoiceGroup
+                legend="Alcohol?"
+                value={draft.alcohol === "none" ? "no" : "yes"}
+                onChange={(v) => set("alcohol", v === "no" ? "none" : "occasional")}
+                choices={[
+                  { value: "no", label: "No" },
+                  { value: "yes", label: "Yes" },
+                ]}
+              />
+              {draft.alcohol !== "none" && (
+                <div>
+                  <ChoiceGroup
+                    legend="How much, honestly"
+                    value={draft.alcohol}
+                    onChange={(v) => set("alcohol", v)}
+                    choices={[
+                      { value: "occasional", label: "A few a month" },
+                      { value: "weekly", label: "A few a week" },
+                      { value: "daily", label: "1–2 most days" },
+                      { value: "heavy", label: "3+ most days" },
+                    ]}
+                  />
+                  <p className="mt-2 text-[11px] leading-relaxed text-salt">
+                    Not a judgement question. Alcohol drains exactly what this diet is shortest
+                    on &mdash; magnesium, zinc, B1 &mdash; so the report reads differently at
+                    &ldquo;most days&rdquo; than at &ldquo;a few a month&rdquo;.
+                  </p>
+                </div>
+              )}
+            </div>
+
+            <p className="border-t border-edge pt-4 text-[11px] leading-relaxed text-salt">
               Your answers are processed to build this report and are not stored. No account, no
               email, nothing to unsubscribe from.
             </p>

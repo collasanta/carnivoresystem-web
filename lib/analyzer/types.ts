@@ -78,6 +78,7 @@ export type Goal = "lose" | "maintain" | "gain";
 /** Deficiency onset windows differ by orders of magnitude, so tenure matters. */
 export type Tenure = "under1m" | "1to3m" | "3to12m" | "over1y";
 export type SaltType = "iodized" | "pink" | "sea" | "none" | "unknown";
+export type AlcoholLevel = "none" | "occasional" | "weekly" | "daily" | "heavy";
 
 export interface Profile {
   sex: Sex;
@@ -95,6 +96,10 @@ export interface Profile {
   symptoms: string[];
   otherSymptoms?: string;
   supplements?: string;
+  /** Free text about cheat meals or off-diet days. Context for the writer only
+   *  — exceptions are not the habitual diet, so they never enter the math. */
+  offDays?: string;
+  alcohol: AlcoholLevel;
   dietText: string;
 }
 
@@ -114,6 +119,26 @@ export interface ParsedFood {
    * unmatched foods are never estimated — they count as zero and the report says so.
    */
   est?: { kcal: number; protein: number; fat: number };
+}
+
+/**
+ * One supplement the parser could pin to a nutrient and a daily amount, in that
+ * nutrient's own unit. Amounts come from the label the user quoted; `estimated`
+ * marks the two sanctioned heuristics (fish oil at 30% EPA+DHA, known-brand
+ * electrolyte mixes). Anything vaguer lands in UnquantifiedSupplement instead —
+ * an unquantifiable pill contributes a warning, never a number.
+ */
+export interface ParsedSupplement {
+  nutrientId: NutrientId;
+  label: string;
+  amountPerDay: number;
+  source: string;
+  estimated?: boolean;
+}
+
+export interface UnquantifiedSupplement {
+  label: string;
+  reason: string;
 }
 
 export type Band = "deficient" | "low" | "adequate" | "high" | "excess";
@@ -184,6 +209,8 @@ export interface Assessment {
   nutrients: NutrientResult[];
   flags: Flag[];
   parsed: ParsedFood[];
+  supplements: ParsedSupplement[];
+  unquantifiedSupplements: UnquantifiedSupplement[];
   symptomInsights: SymptomInsight[];
   redFlags: { symptom: string; urgency: "emergency" | "urgent"; reason: string }[];
 }
