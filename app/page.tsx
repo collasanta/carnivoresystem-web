@@ -22,13 +22,19 @@ const MODULES = [
   },
   {
     index: "CS.04",
+    name: "Diet Analyzer",
+    detail: "Free · find the gaps in what you eat",
+    href: "/analyzer",
+  },
+  {
+    index: "CS.05",
     name: "YouTube",
     detail: "Long-form · recipes · results",
     href: "#",
     dev: true,
   },
   {
-    index: "CS.05",
+    index: "CS.06",
     name: "Online Store",
     detail: "Kitchen tools of the system",
     href: "#",
