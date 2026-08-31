@@ -18,9 +18,8 @@ export default function OgImage() {
           display: "flex",
           flexDirection: "column",
           justifyContent: "space-between",
-          backgroundColor: "#ede7d9",
+          backgroundColor: "#fcf8f1",
           padding: "60px 64px",
-          fontFamily: "monospace",
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
@@ -29,22 +28,22 @@ export default function OgImage() {
               width: 14,
               height: 14,
               borderRadius: 9999,
-              backgroundColor: "#a6251c",
+              backgroundColor: "#7a5a3e",
             }}
           />
-          <div style={{ fontSize: 22, letterSpacing: "0.25em", color: "#6b6053" }}>
-            THE CARNIVORE SYSTEM — CS.04 · FREE TOOL
+          <div style={{ fontSize: 22, letterSpacing: "0.18em", color: "#93887a", fontWeight: 700 }}>
+            THE CARNIVORE SYSTEM · FREE TOOL
           </div>
         </div>
 
         <div style={{ display: "flex", flexDirection: "column" }}>
-          <div style={{ fontSize: 112, fontWeight: 800, color: "#17110f", lineHeight: 1 }}>
-            DIET
+          <div style={{ fontSize: 104, fontWeight: 800, color: "#211a12", lineHeight: 1.02, letterSpacing: "-3px" }}>
+            Diet
           </div>
-          <div style={{ fontSize: 112, fontWeight: 800, color: "#a6251c", lineHeight: 1 }}>
-            ANALYZER
+          <div style={{ fontSize: 104, fontWeight: 800, color: "#7a5a3e", lineHeight: 1.02, letterSpacing: "-3px" }}>
+            Analyzer
           </div>
-          <div style={{ fontSize: 28, color: "#6b6053", marginTop: 28, maxWidth: 920 }}>
+          <div style={{ fontSize: 28, color: "#93887a", marginTop: 28, maxWidth: 920 }}>
             What is your carnivore diet missing? Nutrient by nutrient, with the food that fixes
             each gap. Free, no signup.
           </div>
@@ -53,9 +52,10 @@ export default function OgImage() {
         <div
           style={{
             display: "flex",
-            height: 8,
-            width: "100%",
-            backgroundImage: "linear-gradient(90deg, #7a1a13, #a6251c 35%, rgba(0,0,0,0))",
+            height: 10,
+            width: 260,
+            borderRadius: 999,
+            backgroundColor: "#251e17",
           }}
         />
       </div>

@@ -34,14 +34,9 @@ export function WaitlistForm() {
 
   if (state.status === "done") {
     return (
-      <p
-        role="status"
-        className="border border-ember px-4 py-4 text-[13px] leading-relaxed text-bone"
-      >
-        <span className="mb-1 block font-display text-[13px] tracking-[0.04em] uppercase">
-          You&rsquo;re on the list
-        </span>
-        <span className="text-salt">
+      <p role="status" className="rounded-2xl border border-line bg-card p-5 text-[13px] leading-relaxed">
+        <span className="mb-1 block text-[14px] font-bold text-ink">You&rsquo;re on the list</span>
+        <span className="text-mute">
           The TestFlight invite goes out the day it ships. Nothing else in between.
         </span>
       </p>
@@ -50,7 +45,10 @@ export function WaitlistForm() {
 
   return (
     <form onSubmit={onSubmit} className="flex flex-col gap-3" noValidate>
-      <label htmlFor="email" className="text-[10px] tracking-[0.2em] text-salt uppercase">
+      <label
+        htmlFor="email"
+        className="text-[11px] font-semibold tracking-[0.14em] text-mute uppercase"
+      >
         Email
       </label>
 
@@ -66,7 +64,7 @@ export function WaitlistForm() {
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           aria-invalid={state.status === "error"}
-          className="min-w-0 flex-1 border border-edge bg-smoke px-4 py-3 text-[13px] text-bone placeholder:text-salt/70 focus:border-ember focus:outline-2 focus:outline-offset-2 focus:outline-ember"
+          className="min-w-0 flex-1 rounded-full border border-line bg-card px-5 py-3.5 text-[14px] text-ink placeholder:text-faint focus:border-cta focus:outline-2 focus:outline-offset-2 focus:outline-cta"
         />
 
         <input
@@ -83,19 +81,19 @@ export function WaitlistForm() {
         <button
           type="submit"
           disabled={state.status === "sending"}
-          className="border border-ember bg-ember px-6 py-3 font-display text-[12px] tracking-[0.14em] whitespace-nowrap text-char uppercase transition-[opacity,background-color] duration-[180ms] ease-out hover:bg-blood focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ember disabled:opacity-60"
+          className="rounded-full bg-cta px-7 py-3.5 text-[12.5px] font-bold tracking-[0.12em] whitespace-nowrap text-card uppercase transition-colors duration-150 hover:bg-ctah focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cta disabled:opacity-60"
         >
           {state.status === "sending" ? "Sending…" : "Join waitlist"}
         </button>
       </div>
 
       {state.status === "error" && (
-        <p role="alert" className="text-[12px] text-ember">
+        <p role="alert" className="text-[12px] font-medium text-bad">
           {state.message}
         </p>
       )}
 
-      <p className="text-[11px] leading-relaxed text-salt">
+      <p className="text-[12px] leading-relaxed text-mute">
         One email when the app ships. No newsletter, no selling your address.
       </p>
     </form>

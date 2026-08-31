@@ -133,31 +133,31 @@
    --------------------------------------------------------------- */
 
 @theme {
-  /* Bone — butcher paper, ink, and a blood stamp. */
-  --color-char: #ede7d9;
-  --color-smoke: #e3dbc9;
-  --color-bone: #17110f;
-  --color-ember: #a6251c;
-  --color-blood: #7a1a13;
-  --color-salt: #6b6053;
-  --color-edge: #cfc5ae;
-  --color-edge-hover: #b9ac8e;
-  --color-mod-hover: #dad1bc;
-  --color-ash: #a79b85;
+  /* Porcelain — the BetterMe system, faithfully: light cream ground, white
+     cards, near-black espresso actions, walnut as the only decorative accent.
+     Red exists purely as semantic state (deficient / danger), never as brand. */
+  --color-cream: #fcf8f1;
+  --color-card: #ffffff;
+  --color-line: #f0e9dd;
+  --color-linex: #e2d8c6;
+  --color-ink: #211a12;
+  --color-mute: #93887a;
+  --color-faint: #c4bbac;
+  --color-walnut: #7a5a3e;
+  --color-cta: #251e17;
+  --color-ctah: #3a2e21;
+  --color-tint: #f7f1e6;
 
-  /* Analyzer status colours. Muted enough to sit on butcher paper — a clinical
-     green would look like it wandered in from a different product. Red reuses
-     --color-ember, which already carries "attention" across the brand. */
-  --color-good: #4a6b32;
-  --color-warn: #b8791f;
+  --color-good: #4a7a3a;
+  --color-warn: #c08a2e;
+  --color-bad: #c03a2e;
 
-  --font-display: var(--font-archivo-black), sans-serif;
-  --font-mono: var(--font-space-mono), monospace;
+  --font-display: var(--font-jakarta), sans-serif;
 
-  --animate-ember: ember 2.2s ease-in-out infinite;
+  --animate-pulse-soft: pulseSoft 2.4s ease-in-out infinite;
 }
 
-@keyframes ember {
+@keyframes pulseSoft {
   0%,
   100% {
     opacity: 1;
@@ -169,25 +169,17 @@
 
 :root,
 .dark {
-  --background: var(--color-char);
-  --foreground: var(--color-bone);
+  --background: var(--color-cream);
+  --foreground: var(--color-ink);
 }
 
 @layer base {
   html {
-    @apply font-mono;
+    @apply font-sans;
     -webkit-text-size-adjust: 100%;
-    /* Preflight sets 1.5; the original design inherits the UA default. */
-    line-height: normal;
   }
 
   body {
-    background-image:
-      radial-gradient(
-        ellipse 80% 50% at 50% -10%,
-        rgba(166, 37, 28, 0.06),
-        transparent 60%
-      ),
-      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120' viewBox='0 0 120 120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.03 0'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23n)'/%3E%3C/svg%3E");
+    background: var(--color-cream);
   }
 }

@@ -109,10 +109,10 @@ const inRange = (value: string, min: number, max: number): boolean => {
 function QuestionTitle({ children, sub }: { children: React.ReactNode; sub?: string }) {
   return (
     <header className="mb-6 text-center">
-      <h2 className="font-display text-[clamp(19px,5.5vw,26px)] leading-[1.15] tracking-[-0.01em] uppercase">
+      <h2 className="text-[clamp(20px,5.5vw,26px)] leading-[1.15] font-extrabold tracking-[-0.02em] text-balance">
         {children}
       </h2>
-      {sub && <p className="mx-auto mt-2.5 max-w-[400px] text-[12px] leading-relaxed text-salt">{sub}</p>}
+      {sub && <p className="mx-auto mt-2.5 max-w-[400px] text-[12.5px] leading-relaxed text-mute">{sub}</p>}
     </header>
   );
 }
@@ -140,31 +140,37 @@ function OptionCard({
       aria-checked={selected}
       onClick={onClick}
       className={cn(
-        "flex w-full items-center gap-3.5 border py-4 pr-4 pl-4 text-left transition-[border-color,background-color,translate] duration-150",
-        "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ember",
+        "flex w-full items-center gap-3.5 rounded-2xl border bg-card py-4 pr-4 pl-4 text-left shadow-[0_1px_2px_rgba(33,26,18,0.04)] transition-[border-color,background-color,box-shadow] duration-150",
+        "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cta",
         selected
-          ? "border-ember bg-ember/10"
+          ? tone === "danger"
+            ? "border-bad shadow-[0_0_0_1px_var(--color-bad)]"
+            : "border-cta shadow-[0_0_0_1px_var(--color-cta)]"
           : tone === "danger"
-            ? "border-ember/40 bg-smoke hover:border-ember hover:bg-ember/[0.06]"
-            : "border-edge bg-smoke hover:translate-x-[2px] hover:border-edge-hover hover:bg-mod-hover",
+            ? "border-bad/30 hover:border-bad/60"
+            : "border-line hover:border-linex hover:shadow-[0_3px_10px_rgba(33,26,18,0.06)]",
       )}
     >
       <span className="flex-1">
-        <span className={cn("block text-[14px] leading-snug", selected ? "font-bold text-bone" : "text-bone")}>
+        <span className={cn("block text-[14px] leading-snug text-ink", selected && "font-bold")}>
           {children}
         </span>
-        {hint && <span className="mt-0.5 block text-[11px] leading-relaxed text-salt">{hint}</span>}
+        {hint && <span className="mt-0.5 block text-[11.5px] leading-relaxed text-mute">{hint}</span>}
       </span>
       <span
         aria-hidden="true"
         className={cn(
-          "flex size-[18px] flex-none items-center justify-center border",
-          multi ? "" : "rounded-full",
-          selected ? "border-ember bg-ember" : "border-ash bg-char",
+          "flex size-[19px] flex-none items-center justify-center border-[1.5px]",
+          multi ? "rounded-[6px]" : "rounded-full",
+          selected
+            ? tone === "danger"
+              ? "border-bad bg-bad"
+              : "border-cta bg-cta"
+            : "border-faint bg-card",
         )}
       >
         {selected && (
-          <span className={cn("block bg-char", multi ? "size-[8px]" : "size-[8px] rounded-full")} />
+          <span className={cn("block bg-card", multi ? "size-[8px] rounded-[2px]" : "size-[8px] rounded-full")} />
         )}
       </span>
     </button>
@@ -187,7 +193,7 @@ function BigInput({
   onEnter?: () => void;
 }) {
   return (
-    <div className="flex items-baseline justify-center gap-2 border-b-2 border-edge pb-2 focus-within:border-ember">
+    <div className="flex items-baseline justify-center gap-2 border-b-2 border-line pb-2 focus-within:border-cta">
       <input
         inputMode="decimal"
         autoFocus={autoFocus}
@@ -196,9 +202,9 @@ function BigInput({
         onChange={(e) => onChange(e.target.value)}
         onKeyDown={(e) => e.key === "Enter" && onEnter?.()}
         aria-label={placeholder}
-        className="w-[130px] bg-transparent text-center font-display text-[38px] text-bone outline-none placeholder:text-ash/60"
+        className="w-[130px] bg-transparent text-center text-[38px] font-extrabold tracking-[-0.02em] text-ink outline-none placeholder:text-faint"
       />
-      <span className="font-display text-[20px] text-salt">{unit}</span>
+      <span className="text-[18px] font-bold text-mute">{unit}</span>
     </div>
   );
 }
@@ -213,7 +219,7 @@ function UnitPill<T extends string>({
   onChange: (value: T) => void;
 }) {
   return (
-    <div className="mx-auto mb-7 flex w-fit border border-edge bg-char p-[3px]">
+    <div className="mx-auto mb-7 flex w-fit rounded-full border border-line bg-card p-[3px]">
       {options.map((option) => (
         <button
           key={option.value}
@@ -221,9 +227,9 @@ function UnitPill<T extends string>({
           aria-pressed={option.value === value}
           onClick={() => onChange(option.value)}
           className={cn(
-            "px-4 py-1.5 text-[11px] font-bold tracking-[0.12em] uppercase transition-colors duration-150",
-            "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ember",
-            option.value === value ? "bg-ember text-char" : "text-salt hover:text-bone",
+            "rounded-full px-4 py-1.5 text-[11px] font-bold tracking-[0.1em] uppercase transition-colors duration-150",
+            "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cta",
+            option.value === value ? "bg-cta text-card" : "text-mute hover:text-ink",
           )}
         >
           {option.label}
@@ -234,7 +240,7 @@ function UnitPill<T extends string>({
 }
 
 const textAreaClass =
-  "w-full min-w-0 resize-y border border-edge bg-smoke px-3.5 py-3 text-[13px] leading-relaxed text-bone placeholder:text-salt/70 focus:border-ember focus:outline-2 focus:outline-offset-2 focus:outline-ember";
+  "w-full min-w-0 resize-y rounded-2xl border border-line bg-card px-4 py-3.5 text-[13.5px] leading-relaxed text-ink shadow-[0_1px_2px_rgba(33,26,18,0.04)] placeholder:text-faint focus:border-cta focus:outline-2 focus:outline-offset-2 focus:outline-cta";
 
 /* ------------------------------------------------------------------ quiz -- */
 
@@ -423,21 +429,21 @@ export function Quiz({
           onClick={back}
           disabled={index === 0 || pending}
           aria-label="Back"
-          className="flex size-9 flex-none items-center justify-center border border-edge bg-smoke text-bone transition-colors duration-150 hover:border-ember hover:text-ember focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ember disabled:invisible"
+          className="flex size-9 flex-none items-center justify-center rounded-full border border-line bg-card text-ink shadow-[0_1px_2px_rgba(33,26,18,0.04)] transition-colors duration-150 hover:border-linex focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cta disabled:invisible"
         >
           &larr;
         </button>
-        <span className="text-[10px] tracking-[0.2em] text-salt uppercase">
+        <span className="text-[10.5px] font-semibold tracking-[0.16em] text-mute uppercase">
           {SECTIONS[screen.section]}
         </span>
-        <span className="w-9 flex-none text-right font-mono text-[10px] text-ash">
+        <span className="w-9 flex-none text-right text-[10.5px] font-semibold text-faint">
           {visibleIndex + 1}/{visible.length}
         </span>
       </div>
       <div className="mb-8 flex gap-1" aria-hidden="true">
         {sectionFill.map((fill, i) => (
-          <div key={i} className="h-[3px] flex-1 bg-edge">
-            <div className="h-full bg-ember transition-[width] duration-300" style={{ width: `${fill * 100}%` }} />
+          <div key={i} className="h-[4px] flex-1 overflow-hidden rounded-full bg-line">
+            <div className="h-full rounded-full bg-cta transition-[width] duration-300" style={{ width: `${fill * 100}%` }} />
           </div>
         ))}
       </div>
@@ -468,7 +474,7 @@ export function Quiz({
                 autoFocus
                 onEnter={() => ctaEnabled && forward(index, draft)}
               />
-              <p className="mt-2 text-center text-[11px] text-salt">Please enter a value from 16 to 100</p>
+              <p className="mt-2 text-center text-[11.5px] text-mute">Please enter a value from 16 to 100</p>
             </div>
           </>
         )}
@@ -493,7 +499,7 @@ export function Quiz({
                   placeholder="180"
                   onEnter={() => ctaEnabled && forward(index, draft)}
                 />
-                <p className="mt-2 text-center text-[11px] text-salt">Please enter a value from 120 to 230 cm</p>
+                <p className="mt-2 text-center text-[11.5px] text-mute">Please enter a value from 120 to 230 cm</p>
               </div>
             ) : (
               <div className="mx-auto flex max-w-[340px] items-start justify-center gap-6">
@@ -527,7 +533,7 @@ export function Quiz({
                 placeholder={metric ? "82" : "180"}
                 onEnter={() => ctaEnabled && forward(index, draft)}
               />
-              <p className="mt-2 text-center text-[11px] text-salt">
+              <p className="mt-2 text-center text-[11.5px] text-mute">
                 Please enter a value from {metric ? "35 to 300 kg" : "77 to 660 lb"}
               </p>
             </div>
@@ -631,7 +637,7 @@ export function Quiz({
                 placeholder="6"
                 onEnter={() => ctaEnabled && forward(index, draft)}
               />
-              <p className="mt-2 text-center text-[11px] text-salt">Please enter a value from 0 to 60 g</p>
+              <p className="mt-2 text-center text-[11.5px] text-mute">Please enter a value from 0 to 60 g</p>
             </div>
           </>
         )}
@@ -639,13 +645,13 @@ export function Quiz({
         {screen.id === "trust" && (
           <div className="text-center">
             <QuestionTitle>Your numbers are computed, not guessed</QuestionTitle>
-            <div className="mx-auto max-w-[420px] border border-edge border-l-[3px] border-l-blood bg-smoke p-5 text-left">
-              <p className="text-[13px] leading-relaxed text-bone">
+            <div className="mx-auto max-w-[420px] rounded-2xl border border-line bg-card p-5 text-left shadow-[0_1px_2px_rgba(33,26,18,0.04)]">
+              <p className="text-[13.5px] leading-relaxed text-ink">
                 Next comes the part that matters — what you actually eat. A model reads your
                 description, but every vitamin and mineral figure is computed from a USDA
                 composition table against published reference intakes.
               </p>
-              <p className="mt-3 text-[12px] leading-relaxed text-salt">
+              <p className="mt-3 text-[12.5px] leading-relaxed text-mute">
                 Ask twice, get the same answer. No fibre guilt, no B12 false alarms — this tool is
                 built for this diet, and every source is named at the bottom of the page.
               </p>
@@ -667,11 +673,11 @@ export function Quiz({
               aria-label="Your daily food"
               className={textAreaClass}
             />
-            <div className="mt-2 flex items-center justify-between gap-3 text-[11px] text-salt">
+            <div className="mt-2 flex items-center justify-between gap-3 text-[11.5px] text-mute">
               <button
                 type="button"
                 onClick={() => set("dietText", EXAMPLE)}
-                className="underline underline-offset-4 hover:text-ember focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ember"
+                className="font-semibold underline underline-offset-4 hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cta"
               >
                 Use an example
               </button>
@@ -699,7 +705,7 @@ export function Quiz({
               <button
                 type="button"
                 onClick={() => clearGroupAndAdvance(symptomIds)}
-                className="mt-1 flex w-full items-center justify-center border border-ash bg-char py-4 text-[13px] font-bold tracking-[0.06em] text-salt uppercase transition-colors duration-150 hover:border-bone hover:text-bone focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ember"
+                className="mt-1 flex w-full items-center justify-center rounded-2xl border border-dashed border-faint bg-card py-4 text-[13px] font-bold text-mute transition-colors duration-150 hover:border-cta hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cta"
               >
                 None of these
               </button>
@@ -727,7 +733,7 @@ export function Quiz({
               <button
                 type="button"
                 onClick={() => clearGroupAndAdvance(redFlagIds)}
-                className="mt-1 flex w-full items-center justify-center border border-ash bg-char py-4 text-[13px] font-bold tracking-[0.06em] text-salt uppercase transition-colors duration-150 hover:border-bone hover:text-bone focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ember"
+                className="mt-1 flex w-full items-center justify-center rounded-2xl border border-dashed border-faint bg-card py-4 text-[13px] font-bold text-mute transition-colors duration-150 hover:border-cta hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cta"
               >
                 No — none of these
               </button>
@@ -835,23 +841,23 @@ export function Quiz({
             <QuestionTitle sub="Two model calls and a pile of arithmetic — about ten seconds.">
               Ready to run it
             </QuestionTitle>
-            <ul className="flex flex-col border border-edge bg-smoke">
+            <ul className="flex flex-col overflow-hidden rounded-2xl border border-line bg-card shadow-[0_1px_2px_rgba(33,26,18,0.04)]">
               {recap.map((row) => (
                 <li
                   key={row.label}
-                  className="flex items-baseline justify-between gap-4 border-b border-edge px-4 py-3 last:border-b-0"
+                  className="flex items-baseline justify-between gap-4 border-b border-line px-4 py-3 last:border-b-0"
                 >
-                  <span className="text-[10px] tracking-[0.18em] text-salt uppercase">{row.label}</span>
-                  <span className="text-right text-[12px] text-bone">{row.value}</span>
+                  <span className="text-[10px] font-semibold tracking-[0.16em] text-mute uppercase">{row.label}</span>
+                  <span className="text-right text-[12.5px] font-medium text-ink">{row.value}</span>
                 </li>
               ))}
             </ul>
-            <p className="mt-3 text-[11px] leading-relaxed text-salt">
+            <p className="mt-3 text-[11.5px] leading-relaxed text-mute">
               Your answers are processed to build the report and are not stored. No account, no
               email. Use the arrow up top to change anything.
             </p>
             {error && (
-              <p role="alert" className="mt-3 border border-ember bg-ember/[0.06] px-3.5 py-2.5 text-[12px] text-ember">
+              <p role="alert" className="mt-3 rounded-2xl border border-bad/40 bg-bad/[0.06] px-4 py-3 text-[12.5px] font-medium text-bad">
                 {error}
               </p>
             )}
@@ -861,13 +867,13 @@ export function Quiz({
 
       {/* ---- pinned CTA -------------------------------------------------- */}
       {(needsCta || screen.id === "review") && (
-        <div className="sticky bottom-0 mt-7 border-t border-edge bg-char/95 py-3 backdrop-blur-sm">
+        <div className="sticky bottom-0 mt-7 bg-cream/95 py-3 backdrop-blur-sm">
           {screen.id === "review" ? (
             <button
               type="button"
               onClick={onSubmit}
               disabled={pending || !ctaEnabled}
-              className="w-full border border-ember bg-ember px-6 py-4 font-display text-[13px] tracking-[0.14em] text-char uppercase transition-colors duration-150 hover:bg-blood focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ember disabled:opacity-60"
+              className="w-full rounded-full bg-cta px-6 py-4 text-[12.5px] font-bold tracking-[0.12em] text-card uppercase shadow-[0_4px_14px_rgba(33,26,18,0.18)] transition-colors duration-150 hover:bg-ctah focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cta disabled:opacity-60"
             >
               {pending ? "Analysing…" : "Analyse my diet"}
             </button>
@@ -876,7 +882,7 @@ export function Quiz({
               type="button"
               onClick={() => forward(index, draft)}
               disabled={!ctaEnabled}
-              className="w-full border border-ember bg-ember px-6 py-4 font-display text-[13px] tracking-[0.14em] text-char uppercase transition-colors duration-150 hover:bg-blood focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ember disabled:cursor-not-allowed disabled:border-edge disabled:bg-smoke disabled:text-ash"
+              className="w-full rounded-full bg-cta px-6 py-4 text-[12.5px] font-bold tracking-[0.12em] text-card uppercase shadow-[0_4px_14px_rgba(33,26,18,0.18)] transition-colors duration-150 hover:bg-ctah focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cta disabled:cursor-not-allowed disabled:bg-line disabled:text-faint disabled:shadow-none"
             >
               {screen.id === "trust" ? "Continue" : "Next step"}
             </button>

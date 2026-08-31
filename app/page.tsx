@@ -2,39 +2,33 @@ import { LinkModule } from "@/components/link-module";
 
 const MODULES = [
   {
-    index: "CS.01",
     name: "Instagram",
     detail: "Daily meals · training",
     href: "https://www.instagram.com/carnivoresystem",
   },
   {
-    index: "CS.02",
     name: "TikTok",
     detail: "Daily shorts",
     href: "https://www.tiktok.com/@carnivoresystem",
   },
   {
-    index: "CS.03",
     name: "Carnivore System App",
     detail: "iOS · macro tracker",
     href: "/app",
     chip: "Waitlist",
   },
   {
-    index: "CS.04",
     name: "Diet Analyzer",
     detail: "Free · find the gaps in what you eat",
     href: "/analyzer",
   },
   {
-    index: "CS.05",
     name: "YouTube",
     detail: "Long-form · recipes · results",
     href: "#",
     dev: true,
   },
   {
-    index: "CS.06",
     name: "Online Store",
     detail: "Kitchen tools of the system",
     href: "#",
@@ -45,47 +39,36 @@ const MODULES = [
 export default function Home() {
   return (
     <div className="w-full max-w-[480px]">
-      <header>
-        <div className="flex items-center gap-2.5 text-[11px] tracking-[0.18em] text-salt uppercase">
+      <header className="text-center">
+        <div className="flex items-center justify-center gap-2 text-[11px] font-semibold tracking-[0.16em] text-mute uppercase">
           <span
             aria-hidden="true"
-            className="size-[7px] flex-none animate-ember rounded-full bg-ember shadow-[0_0_8px_var(--color-ember)] motion-reduce:animate-none"
+            className="size-[7px] flex-none animate-pulse-soft rounded-full bg-walnut motion-reduce:animate-none"
           />
-          system online — est. 2026
+          Est. 2026
         </div>
 
-        <h1 className="mt-3.5 font-display font-bold text-[clamp(38px,11vw,54px)] leading-[0.94] tracking-[-0.01em] uppercase">
-          <span className="mb-1.5 block font-mono text-[12px] font-bold tracking-[0.5em] text-ember">
-            The
-          </span>
-          Carnivore
+        <h1 className="mt-3 text-[clamp(30px,8vw,40px)] leading-[1.05] font-extrabold tracking-[-0.03em] text-balance">
+          The Carnivore
           <br />
-          <span className="text-ember">System</span>
+          <span className="text-walnut">System</span>
         </h1>
 
-        <p className="mt-4 text-[13px] tracking-[0.02em] text-salt">
-          Eat meat. Train hard. Track everything.
-        </p>
-
-        <div
-          aria-hidden="true"
-          className="mt-[26px] mb-[22px] h-[2px] w-full bg-[linear-gradient(90deg,var(--color-blood),var(--color-ember)_35%,transparent)]"
-        />
+        <p className="mt-3 text-[14px] text-mute">Eat meat. Train hard. Track everything.</p>
       </header>
 
-      <nav aria-label="Channels">
+      <nav aria-label="Channels" className="mt-8">
         <ul className="flex list-none flex-col gap-3">
           {MODULES.map((mod) => (
-            <li key={mod.index}>
+            <li key={mod.name}>
               <LinkModule {...mod} />
             </li>
           ))}
         </ul>
       </nav>
 
-      <footer className="mt-[34px] flex items-center gap-2.5 text-[10px] tracking-[0.2em] text-salt uppercase">
-        Meat · Salt · Iron <span className="text-ash">|</span> © 2026 The
-        Carnivore System
+      <footer className="mt-10 text-center text-[11px] text-mute">
+        Meat · Salt · Iron — &copy; 2026 The Carnivore System
       </footer>
     </div>
   );

@@ -35,68 +35,54 @@ const FEATURES = [
 
 export default function AppWaitlist() {
   return (
-    <div className="w-full max-w-[480px]">
-      <header>
-        <div className="flex items-center gap-2.5 text-[11px] tracking-[0.18em] text-salt uppercase">
+    <div className="w-full max-w-[520px]">
+      <header className="text-center">
+        <div className="flex items-center justify-center gap-2 text-[11px] font-semibold tracking-[0.16em] text-mute uppercase">
           <span
             aria-hidden="true"
-            className="size-[7px] flex-none animate-ember rounded-full bg-ember shadow-[0_0_8px_var(--color-ember)] motion-reduce:animate-none"
+            className="size-[7px] flex-none animate-pulse-soft rounded-full bg-walnut motion-reduce:animate-none"
           />
-          CS.03 — in development
+          In development
         </div>
 
-        <h1 className="mt-3.5 font-display font-bold text-[clamp(32px,9vw,44px)] leading-[0.96] tracking-[-0.01em] uppercase">
-          Carnivore
-          <br />
-          System <span className="text-ember">App</span>
+        <h1 className="mt-3 text-[clamp(26px,7vw,36px)] leading-[1.08] font-extrabold tracking-[-0.03em] text-balance">
+          Carnivore System <span className="text-walnut">App</span>
         </h1>
 
-        <p className="mt-4 text-[13px] leading-relaxed tracking-[0.02em] text-salt">
-          Every macro tracker buries meat under thousands of foods you don&rsquo;t eat.
-          This one doesn&rsquo;t. Log a 600g ribeye in five seconds.
+        <p className="mx-auto mt-3 max-w-[42ch] text-[13.5px] leading-relaxed text-mute">
+          Every macro tracker buries meat under thousands of foods you don&rsquo;t eat. This one
+          doesn&rsquo;t. Log a 600g ribeye in five seconds.
         </p>
-
-        <div
-          aria-hidden="true"
-          className="mt-[26px] mb-[22px] h-[2px] w-full bg-[linear-gradient(90deg,var(--color-blood),var(--color-ember)_35%,transparent)]"
-        />
       </header>
 
-      <section aria-label="What it does">
+      <section aria-label="What it does" className="mt-8">
         <ul className="flex list-none flex-col gap-3">
-          {FEATURES.map((f, i) => (
+          {FEATURES.map((f) => (
             <li
               key={f.head}
-              className="flex items-start gap-3.5 border border-edge border-l-[3px] border-l-blood bg-smoke py-4 pr-4 pl-3.5"
+              className="rounded-2xl border border-line bg-card p-5 shadow-[0_1px_2px_rgba(33,26,18,0.04)]"
             >
-              <span className="w-[52px] flex-none pt-px text-[11px] tracking-[0.1em] text-salt">
-                {String(i + 1).padStart(2, "0")}
+              <span className="block text-[14px] font-bold tracking-[-0.01em] text-ink">
+                {f.head}
               </span>
-              <span className="flex-1">
-                <span className="block font-display text-[13px] leading-[1.25] tracking-[0.04em] uppercase">
-                  {f.head}
-                </span>
-                <span className="mt-1.5 block text-[12px] leading-relaxed text-salt">
-                  {f.body}
-                </span>
-              </span>
+              <span className="mt-1 block text-[12.5px] leading-relaxed text-mute">{f.body}</span>
             </li>
           ))}
         </ul>
       </section>
 
-      <section aria-label="Join the waitlist" className="mt-[26px]">
+      <section aria-label="Join the waitlist" className="mt-7">
         <WaitlistForm />
       </section>
 
-      <footer className="mt-[34px] flex items-center gap-2.5 text-[10px] tracking-[0.2em] text-salt uppercase">
+      <footer className="mt-10 flex items-center justify-center gap-2 text-[11px] text-mute">
         <Link
           href="/"
-          className="underline-offset-4 hover:text-ember hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ember"
+          className="font-semibold underline-offset-4 hover:text-ink hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cta"
         >
-          ← All channels
+          &larr; All channels
         </Link>
-        <span className="text-ash">|</span> © 2026 The Carnivore System
+        <span className="text-faint">|</span> &copy; 2026 The Carnivore System
       </footer>
     </div>
   );

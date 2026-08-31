@@ -1,17 +1,10 @@
 import type { Metadata } from "next";
 import { Analytics } from "@vercel/analytics/next";
-import { Archivo_Black, Space_Mono } from "next/font/google";
+import { Plus_Jakarta_Sans } from "next/font/google";
 import "./globals.css";
 
-const archivoBlack = Archivo_Black({
-  variable: "--font-archivo-black",
-  weight: "400",
-  subsets: ["latin"],
-});
-
-const spaceMono = Space_Mono({
-  variable: "--font-space-mono",
-  weight: ["400", "700"],
+const jakarta = Plus_Jakarta_Sans({
+  variable: "--font-jakarta",
   subsets: ["latin"],
 });
 
@@ -30,11 +23,8 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html
-      lang="en"
-      className={`${archivoBlack.variable} ${spaceMono.variable} h-full antialiased`}
-    >
-      <body className="flex min-h-svh flex-col items-center px-5 pt-10 pb-7">
+    <html lang="en" className={`${jakarta.variable} h-full antialiased`}>
+      <body className="flex min-h-svh flex-col items-center px-5 pt-12 pb-10 font-[family-name:var(--font-jakarta)] text-ink">
         {children}
         <Analytics />
       </body>

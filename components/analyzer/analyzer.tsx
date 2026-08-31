@@ -55,15 +55,15 @@ function Working() {
   }, []);
 
   return (
-    <div className="border border-edge border-l-[3px] border-l-ember bg-smoke p-5" role="status">
-      <div className="flex items-center gap-2.5 text-[11px] tracking-[0.18em] text-salt uppercase">
+    <div className="rounded-2xl border border-line bg-card p-5 shadow-[0_1px_2px_rgba(33,26,18,0.04)]" role="status">
+      <div className="flex items-center gap-2.5 text-[11px] font-semibold tracking-[0.14em] text-mute uppercase">
         <span
           aria-hidden="true"
-          className="size-[7px] flex-none animate-ember rounded-full bg-ember shadow-[0_0_8px_var(--color-ember)] motion-reduce:animate-none"
+          className="size-[7px] flex-none animate-pulse-soft rounded-full bg-walnut motion-reduce:animate-none"
         />
         {STAGES[stage]}
       </div>
-      <p className="mt-3 text-[12px] leading-relaxed text-salt">
+      <p className="mt-3 text-[12.5px] leading-relaxed text-mute">
         The vitamin and mineral figures are computed here, not guessed by a model &mdash; so this
         takes a few seconds longer than a chatbot would, and gives the same answer twice.
       </p>
