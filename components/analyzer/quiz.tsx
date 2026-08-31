@@ -5,13 +5,15 @@ import { RED_FLAGS } from "@/lib/analyzer/redflags";
 import { SYMPTOMS } from "@/lib/analyzer/symptoms";
 import type { Activity, AlcoholLevel, Goal, SaltType, Sex, Tenure } from "@/lib/analyzer/types";
 import { cn } from "@/lib/utils";
-import { ChoiceGroup, Label, TextArea, TextInput, Toggle } from "./fields";
 
 /**
- * The draft lives in the PARENT, not here. The natural loop of this tool is
- * "tweak one food and run it again", and keeping state here meant a re-run
- * threw away all five steps. The parent also persists it to localStorage, so a
- * refresh mid-quiz costs nothing either.
+ * One question per screen, quiz-funnel style: single choices auto-advance,
+ * multi-selects and inputs gate a pinned CTA, sections fill a segmented
+ * progress bar. The structure borrows from the best-converting quiz funnels;
+ * the skin stays butcher paper.
+ *
+ * The draft still lives in the PARENT and persists to localStorage there, so a
+ * refresh or an "edit and re-run" keeps every answer.
  */
 export interface Draft {
   sex: Sex;
@@ -59,7 +61,36 @@ export const EMPTY_DRAFT: Draft = {
   alcohol: "none",
 };
 
-const STEPS = ["Body", "Context", "Your food", "Symptoms", "Lifestyle"] as const;
+const SECTIONS = ["Body", "Context", "Your food", "Symptoms", "Lifestyle"] as const;
+
+interface Screen {
+  id: string;
+  section: number;
+  skip?: (draft: Draft) => boolean;
+}
+
+const SCREENS: Screen[] = [
+  { id: "sex", section: 0 },
+  { id: "age", section: 0 },
+  { id: "height", section: 0 },
+  { id: "weight", section: 0 },
+  { id: "activity", section: 1 },
+  { id: "goal", section: 1 },
+  { id: "tenure", section: 1 },
+  { id: "salt-type", section: 1 },
+  { id: "salt-amount", section: 1 },
+  { id: "trust", section: 2 },
+  { id: "diet", section: 2 },
+  { id: "symptoms", section: 3 },
+  { id: "redflags", section: 3 },
+  { id: "supp-gate", section: 4 },
+  { id: "supp-text", section: 4, skip: (d) => d.takesSupplements !== "yes" },
+  { id: "offdays-gate", section: 4 },
+  { id: "offdays-text", section: 4, skip: (d) => d.hadOffDays !== "yes" },
+  { id: "alcohol-gate", section: 4 },
+  { id: "alcohol-amount", section: 4, skip: (d) => d.alcohol === "none" },
+  { id: "review", section: 4 },
+];
 
 const EXAMPLE = `Two meals a day. 500g ribeye for lunch, 400g of ground beef with three eggs for dinner. Butter on most things. Beef liver maybe once a fortnight. No fish. Coffee in the morning.`;
 
@@ -67,6 +98,145 @@ const num = (value: string): number | null => {
   const n = Number.parseFloat(value.replace(",", "."));
   return Number.isFinite(n) ? n : null;
 };
+
+const inRange = (value: string, min: number, max: number): boolean => {
+  const n = num(value);
+  return n !== null && n >= min && n <= max;
+};
+
+/* ---------------------------------------------------------------- pieces -- */
+
+function QuestionTitle({ children, sub }: { children: React.ReactNode; sub?: string }) {
+  return (
+    <header className="mb-6 text-center">
+      <h2 className="font-display text-[clamp(19px,5.5vw,26px)] leading-[1.15] tracking-[-0.01em] uppercase">
+        {children}
+      </h2>
+      {sub && <p className="mx-auto mt-2.5 max-w-[400px] text-[12px] leading-relaxed text-salt">{sub}</p>}
+    </header>
+  );
+}
+
+/** A full-width answer card with a stamp-style indicator square. */
+function OptionCard({
+  selected,
+  onClick,
+  children,
+  hint,
+  multi,
+  tone,
+}: {
+  selected: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+  hint?: string;
+  multi?: boolean;
+  tone?: "danger";
+}) {
+  return (
+    <button
+      type="button"
+      role={multi ? "checkbox" : "radio"}
+      aria-checked={selected}
+      onClick={onClick}
+      className={cn(
+        "flex w-full items-center gap-3.5 border py-4 pr-4 pl-4 text-left transition-[border-color,background-color,translate] duration-150",
+        "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ember",
+        selected
+          ? "border-ember bg-ember/10"
+          : tone === "danger"
+            ? "border-ember/40 bg-smoke hover:border-ember hover:bg-ember/[0.06]"
+            : "border-edge bg-smoke hover:translate-x-[2px] hover:border-edge-hover hover:bg-mod-hover",
+      )}
+    >
+      <span className="flex-1">
+        <span className={cn("block text-[14px] leading-snug", selected ? "font-bold text-bone" : "text-bone")}>
+          {children}
+        </span>
+        {hint && <span className="mt-0.5 block text-[11px] leading-relaxed text-salt">{hint}</span>}
+      </span>
+      <span
+        aria-hidden="true"
+        className={cn(
+          "flex size-[18px] flex-none items-center justify-center border",
+          multi ? "" : "rounded-full",
+          selected ? "border-ember bg-ember" : "border-ash bg-char",
+        )}
+      >
+        {selected && (
+          <span className={cn("block bg-char", multi ? "size-[8px]" : "size-[8px] rounded-full")} />
+        )}
+      </span>
+    </button>
+  );
+}
+
+function BigInput({
+  value,
+  onChange,
+  unit,
+  placeholder,
+  autoFocus,
+  onEnter,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  unit: string;
+  placeholder: string;
+  autoFocus?: boolean;
+  onEnter?: () => void;
+}) {
+  return (
+    <div className="flex items-baseline justify-center gap-2 border-b-2 border-edge pb-2 focus-within:border-ember">
+      <input
+        inputMode="decimal"
+        autoFocus={autoFocus}
+        placeholder={placeholder}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        onKeyDown={(e) => e.key === "Enter" && onEnter?.()}
+        aria-label={placeholder}
+        className="w-[130px] bg-transparent text-center font-display text-[38px] text-bone outline-none placeholder:text-ash/60"
+      />
+      <span className="font-display text-[20px] text-salt">{unit}</span>
+    </div>
+  );
+}
+
+function UnitPill<T extends string>({
+  value,
+  options,
+  onChange,
+}: {
+  value: T;
+  options: { value: T; label: string }[];
+  onChange: (value: T) => void;
+}) {
+  return (
+    <div className="mx-auto mb-7 flex w-fit border border-edge bg-char p-[3px]">
+      {options.map((option) => (
+        <button
+          key={option.value}
+          type="button"
+          aria-pressed={option.value === value}
+          onClick={() => onChange(option.value)}
+          className={cn(
+            "px-4 py-1.5 text-[11px] font-bold tracking-[0.12em] uppercase transition-colors duration-150",
+            "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ember",
+            option.value === value ? "bg-ember text-char" : "text-salt hover:text-bone",
+          )}
+        >
+          {option.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+const textAreaClass =
+  "w-full min-w-0 resize-y border border-edge bg-smoke px-3.5 py-3 text-[13px] leading-relaxed text-bone placeholder:text-salt/70 focus:border-ember focus:outline-2 focus:outline-offset-2 focus:outline-ember";
+
+/* ------------------------------------------------------------------ quiz -- */
 
 export function Quiz({
   draft,
@@ -81,24 +251,66 @@ export function Quiz({
   pending: boolean;
   error?: string;
 }) {
-  const [step, setStep] = useState(0);
-  const panelRef = useRef<HTMLDivElement>(null);
+  const [index, setIndex] = useState(0);
+  const topRef = useRef<HTMLDivElement>(null);
   const firstRender = useRef(true);
+  const advanceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Steps vary a lot in height, so advancing can leave the new panel below the
-  // fold. Skipped on mount so the page does not yank itself downward.
   useEffect(() => {
     if (firstRender.current) {
       firstRender.current = false;
       return;
     }
-    panelRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
-  }, [step]);
+    topRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }, [index]);
 
+  useEffect(() => () => {
+    if (advanceTimer.current) clearTimeout(advanceTimer.current);
+  }, []);
+
+  const screen = SCREENS[index];
   const set = <K extends keyof Draft>(key: K, value: Draft[K]) =>
     onChange({ ...draft, [key]: value });
 
-  /** Switching units converts what is already typed instead of discarding it. */
+  /** Next non-skipped screen, judged against a draft that may be newer than the prop. */
+  function forward(from: number, current: Draft) {
+    let next = from + 1;
+    while (next < SCREENS.length && SCREENS[next].skip?.(current)) next += 1;
+    setIndex(Math.min(next, SCREENS.length - 1));
+  }
+
+  function back() {
+    let previous = index - 1;
+    while (previous > 0 && SCREENS[previous].skip?.(draft)) previous -= 1;
+    setIndex(Math.max(previous, 0));
+  }
+
+  /** Single-choice select: paint the selection, then advance on a short beat. */
+  function choose<K extends keyof Draft>(key: K, value: Draft[K]) {
+    const updated = { ...draft, [key]: value };
+    onChange(updated);
+    if (advanceTimer.current) clearTimeout(advanceTimer.current);
+    advanceTimer.current = setTimeout(() => forward(index, updated), 260);
+  }
+
+  function toggleSymptom(id: string) {
+    onChange({
+      ...draft,
+      symptoms: draft.symptoms.includes(id)
+        ? draft.symptoms.filter((s) => s !== id)
+        : [...draft.symptoms, id],
+    });
+  }
+
+  /** "None of these" for a group: clear that group's picks and move on. */
+  function clearGroupAndAdvance(ids: string[]) {
+    const updated = { ...draft, symptoms: draft.symptoms.filter((s) => !ids.includes(s)) };
+    onChange(updated);
+    forward(index, updated);
+  }
+
+  const metric = draft.units === "metric";
+
   function switchUnits(next: "metric" | "imperial") {
     if (next === draft.units) return;
     const d: Draft = { ...draft, units: next };
@@ -129,235 +341,333 @@ export function Quiz({
     onChange(d);
   }
 
-  const metric = draft.units === "metric";
+  /* ---- validation per screen, gating the CTA -------------------------- */
+  const heightValid = metric
+    ? inRange(draft.heightCm, 120, 230)
+    : inRange(draft.heightFt, 3, 7) &&
+      (draft.heightIn === "" || inRange(draft.heightIn, 0, 11));
+  const weightValid = metric ? inRange(draft.weight, 35, 300) : inRange(draft.weight, 77, 660);
   const dietReady = draft.dietText.trim().length >= 10;
-  const canAdvance = step === 2 ? dietReady : true;
 
-  function toggleSymptom(id: string) {
-    onChange({
-      ...draft,
-      symptoms: draft.symptoms.includes(id)
-        ? draft.symptoms.filter((s) => s !== id)
-        : [...draft.symptoms, id],
-    });
-  }
+  const ctaState: Record<string, boolean> = {
+    age: inRange(draft.age, 16, 100),
+    height: heightValid,
+    weight: weightValid,
+    "salt-amount": inRange(draft.saltGrams, 0, 60),
+    trust: true,
+    diet: dietReady,
+    symptoms: draft.symptoms.some((s) => SYMPTOMS.some((y) => y.id === s)),
+    redflags: draft.symptoms.some((s) => RED_FLAGS.some((f) => f.id === s)),
+    "supp-text": true,
+    "offdays-text": true,
+    review: dietReady,
+  };
+  const needsCta = screen.id in ctaState;
+  const ctaEnabled = ctaState[screen.id];
+
+  /* ---- progress -------------------------------------------------------- */
+  const visible = SCREENS.filter((s) => !s.skip?.(draft));
+  const visibleIndex = visible.findIndex((s) => s.id === screen.id);
+  const sectionFill = SECTIONS.map((_, sectionIndex) => {
+    const inSection = visible.filter((s) => s.section === sectionIndex);
+    const done = inSection.filter((s) => visible.indexOf(s) < visibleIndex).length;
+    const active = screen.section === sectionIndex ? 0.5 : 0;
+    return inSection.length ? Math.min(1, (done + active) / inSection.length) : 0;
+  });
+
+  const symptomIds = SYMPTOMS.map((s) => s.id);
+  const redFlagIds = RED_FLAGS.map((f) => f.id);
+
+  const recap: { label: string; value: string }[] = [
+    {
+      label: "Body",
+      value: `${draft.sex === "male" ? "Male" : "Female"} · ${draft.age || "?"}y · ${
+        metric
+          ? `${draft.heightCm || "?"}cm · ${draft.weight || "?"}kg`
+          : `${draft.heightFt || "?"}'${draft.heightIn || 0}" · ${draft.weight || "?"}lb`
+      }`,
+    },
+    {
+      label: "Carnivore for",
+      value: { under1m: "Under a month", "1to3m": "1–3 months", "3to12m": "3–12 months", over1y: "Over a year" }[draft.tenure],
+    },
+    {
+      label: "Salt",
+      value: `${draft.saltGrams || "?"}g/day · ${
+        { iodized: "iodised", pink: "pink", sea: "sea", none: "none", unknown: "unspecified" }[draft.saltType]
+      }`,
+    },
+    { label: "Symptoms", value: String(draft.symptoms.length) || "0" },
+    {
+      label: "Supplements",
+      value: draft.takesSupplements === "yes" ? "Yes" : "No",
+    },
+    {
+      label: "Alcohol",
+      value: {
+        none: "None",
+        occasional: "A few a month",
+        weekly: "A few a week",
+        daily: "1–2 most days",
+        heavy: "3+ most days",
+      }[draft.alcohol],
+    },
+  ];
 
   return (
-    <div>
-      <ol className="mb-6 flex flex-wrap gap-x-3 gap-y-1.5 text-[10px] tracking-[0.16em] uppercase">
-        {STEPS.map((name, index) => (
-          <li key={name}>
-            <button
-              type="button"
-              onClick={() => index < step && setStep(index)}
-              aria-current={index === step ? "step" : undefined}
-              className={cn(
-                index === step ? "text-ember" : index < step ? "text-bone" : "text-ash",
-                index < step &&
-                  "cursor-pointer underline-offset-4 hover:text-ember hover:underline",
-                "uppercase tracking-[0.16em] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ember",
-              )}
-              disabled={index >= step}
-            >
-              {String(index + 1).padStart(2, "0")} {name}
-            </button>
-          </li>
+    <div ref={topRef}>
+      {/* ---- header: back · section · progress -------------------------- */}
+      <div className="mb-2 flex items-center justify-between gap-3">
+        <button
+          type="button"
+          onClick={back}
+          disabled={index === 0 || pending}
+          aria-label="Back"
+          className="flex size-9 flex-none items-center justify-center border border-edge bg-smoke text-bone transition-colors duration-150 hover:border-ember hover:text-ember focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ember disabled:invisible"
+        >
+          &larr;
+        </button>
+        <span className="text-[10px] tracking-[0.2em] text-salt uppercase">
+          {SECTIONS[screen.section]}
+        </span>
+        <span className="w-9 flex-none text-right font-mono text-[10px] text-ash">
+          {visibleIndex + 1}/{visible.length}
+        </span>
+      </div>
+      <div className="mb-8 flex gap-1" aria-hidden="true">
+        {sectionFill.map((fill, i) => (
+          <div key={i} className="h-[3px] flex-1 bg-edge">
+            <div className="h-full bg-ember transition-[width] duration-300" style={{ width: `${fill * 100}%` }} />
+          </div>
         ))}
-      </ol>
+      </div>
 
-      <div
-        ref={panelRef}
-        className="border border-edge border-l-[3px] border-l-blood bg-smoke p-4 sm:p-5"
-      >
-        {step === 0 && (
-          <div className="flex flex-col gap-5">
-            <div>
-              <Label>Units</Label>
-              <div className="grid max-w-[280px] grid-cols-2 gap-2">
-                <Toggle pressed={metric} onToggle={() => switchUnits("metric")}>
-                  kg / cm
-                </Toggle>
-                <Toggle pressed={!metric} onToggle={() => switchUnits("imperial")}>
-                  lb / ft-in
-                </Toggle>
-              </div>
+      {/* ---- screen ------------------------------------------------------ */}
+      <div key={screen.id} className="animate-in fade-in slide-in-from-bottom-2 duration-300">
+        {screen.id === "sex" && (
+          <>
+            <QuestionTitle sub="Iron reverses direction with this answer: an accumulation risk for men and post-menopausal women, a shortfall risk while menstruating.">
+              What&rsquo;s your sex?
+            </QuestionTitle>
+            <div className="flex flex-col gap-2.5">
+              <OptionCard selected={draft.sex === "male"} onClick={() => choose("sex", "male")}>Male</OptionCard>
+              <OptionCard selected={draft.sex === "female"} onClick={() => choose("sex", "female")}>Female</OptionCard>
             </div>
+          </>
+        )}
 
-            <ChoiceGroup
-              legend="Sex"
-              value={draft.sex}
-              onChange={(v) => set("sex", v)}
-              choices={[
-                { value: "male", label: "Male" },
-                { value: "female", label: "Female" },
+        {screen.id === "age" && (
+          <>
+            <QuestionTitle>How old are you?</QuestionTitle>
+            <div className="mx-auto max-w-[300px]">
+              <BigInput
+                value={draft.age}
+                onChange={(v) => set("age", v)}
+                unit="years"
+                placeholder="35"
+                autoFocus
+                onEnter={() => ctaEnabled && forward(index, draft)}
+              />
+              <p className="mt-2 text-center text-[11px] text-salt">Please enter a value from 16 to 100</p>
+            </div>
+          </>
+        )}
+
+        {screen.id === "height" && (
+          <>
+            <QuestionTitle>How tall are you?</QuestionTitle>
+            <UnitPill
+              value={draft.units}
+              onChange={switchUnits}
+              options={[
+                { value: "imperial", label: "ft" },
+                { value: "metric", label: "cm" },
               ]}
             />
-            <p className="-mt-2 text-[11px] leading-relaxed text-salt">
-              This changes more than the calorie maths. Iron reverses direction: it is an
-              accumulation risk for men and post-menopausal women, and a shortfall risk while
-              menstruating.
-            </p>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label htmlFor="age">Age</Label>
-                <TextInput
-                  id="age"
-                  inputMode="numeric"
-                  placeholder="35"
-                  value={draft.age}
-                  onChange={(e) => set("age", e.target.value)}
-                />
-              </div>
-              <div>
-                <Label htmlFor="weight">Weight ({metric ? "kg" : "lb"})</Label>
-                <TextInput
-                  id="weight"
-                  inputMode="decimal"
-                  placeholder={metric ? "82" : "180"}
-                  value={draft.weight}
-                  onChange={(e) => set("weight", e.target.value)}
-                />
-              </div>
-            </div>
-
             {metric ? (
-              <div>
-                <Label htmlFor="height">Height (cm)</Label>
-                <TextInput
-                  id="height"
-                  inputMode="decimal"
-                  placeholder="180"
+              <div className="mx-auto max-w-[300px]">
+                <BigInput
                   value={draft.heightCm}
-                  onChange={(e) => set("heightCm", e.target.value)}
-                  className="max-w-[200px]"
+                  onChange={(v) => set("heightCm", v)}
+                  unit="cm"
+                  placeholder="180"
+                  onEnter={() => ctaEnabled && forward(index, draft)}
                 />
+                <p className="mt-2 text-center text-[11px] text-salt">Please enter a value from 120 to 230 cm</p>
               </div>
             ) : (
-              <div>
-                <Label>Height</Label>
-                <div className="grid max-w-[280px] grid-cols-2 gap-3">
-                  <div className="flex items-center gap-2">
-                    <TextInput
-                      aria-label="Feet"
-                      inputMode="numeric"
-                      placeholder="5"
-                      value={draft.heightFt}
-                      onChange={(e) => set("heightFt", e.target.value)}
-                    />
-                    <span className="text-[11px] text-salt">ft</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <TextInput
-                      aria-label="Inches"
-                      inputMode="numeric"
-                      placeholder="11"
-                      value={draft.heightIn}
-                      onChange={(e) => set("heightIn", e.target.value)}
-                    />
-                    <span className="text-[11px] text-salt">in</span>
-                  </div>
+              <div className="mx-auto flex max-w-[340px] items-start justify-center gap-6">
+                <div>
+                  <BigInput value={draft.heightFt} onChange={(v) => set("heightFt", v)} unit="ft" placeholder="5" />
+                </div>
+                <div>
+                  <BigInput value={draft.heightIn} onChange={(v) => set("heightIn", v)} unit="in" placeholder="11" onEnter={() => ctaEnabled && forward(index, draft)} />
                 </div>
               </div>
             )}
-          </div>
+          </>
         )}
 
-        {step === 1 && (
-          <div className="flex flex-col gap-5">
-            <ChoiceGroup
-              legend="Activity"
-              columns={3}
-              value={draft.activity}
-              onChange={(v) => set("activity", v)}
-              choices={[
-                { value: "sedentary", label: "Sedentary" },
-                { value: "light", label: "Light" },
-                { value: "moderate", label: "Moderate" },
-                { value: "heavy", label: "Heavy" },
-                { value: "athlete", label: "Athlete" },
+        {screen.id === "weight" && (
+          <>
+            <QuestionTitle>What&rsquo;s your current weight?</QuestionTitle>
+            <UnitPill
+              value={draft.units}
+              onChange={switchUnits}
+              options={[
+                { value: "imperial", label: "lb" },
+                { value: "metric", label: "kg" },
               ]}
             />
-            <ChoiceGroup
-              legend="Goal"
-              columns={3}
-              value={draft.goal}
-              onChange={(v) => set("goal", v)}
-              choices={[
-                { value: "lose", label: "Lose fat" },
-                { value: "maintain", label: "Maintain" },
-                { value: "gain", label: "Build" },
-              ]}
-            />
-            <div>
-              <ChoiceGroup
-                legend="How long carnivore"
-                value={draft.tenure}
-                onChange={(v) => set("tenure", v)}
-                choices={[
-                  { value: "under1m", label: "Under a month" },
-                  { value: "1to3m", label: "1–3 months" },
-                  { value: "3to12m", label: "3–12 months" },
-                  { value: "over1y", label: "Over a year" },
-                ]}
+            <div className="mx-auto max-w-[300px]">
+              <BigInput
+                value={draft.weight}
+                onChange={(v) => set("weight", v)}
+                unit={metric ? "kg" : "lb"}
+                placeholder={metric ? "82" : "180"}
+                onEnter={() => ctaEnabled && forward(index, draft)}
               />
-              <p className="mt-2 text-[11px] leading-relaxed text-salt">
-                Deficiencies arrive on wildly different clocks. Electrolytes bite in the first
-                week; folate takes three months; calcium is measured in years.
+              <p className="mt-2 text-center text-[11px] text-salt">
+                Please enter a value from {metric ? "35 to 300 kg" : "77 to 660 lb"}
               </p>
             </div>
-            <div>
-              <ChoiceGroup
-                legend="Which salt"
-                value={draft.saltType}
-                onChange={(v) => set("saltType", v)}
-                choices={[
-                  { value: "pink", label: "Pink / Himalayan" },
-                  { value: "sea", label: "Sea salt" },
-                  { value: "iodized", label: "Iodised table salt" },
-                  { value: "unknown", label: "Not sure" },
-                ]}
-              />
-              <p className="mt-2 text-[11px] leading-relaxed text-salt">
-                The highest-leverage question here. Iodised salt averages 52mcg of iodine per
-                gram; non-iodised sea salt averages 0.015. Switching one for the other quietly
-                removes your only reliable source.
-              </p>
+          </>
+        )}
+
+        {screen.id === "activity" && (
+          <>
+            <QuestionTitle>How active are you?</QuestionTitle>
+            <div className="flex flex-col gap-2.5">
+              {(
+                [
+                  ["sedentary", "Mostly sitting", "Desk work, little walking"],
+                  ["light", "Lightly active", "On your feet part of the day, or 1–2 workouts a week"],
+                  ["moderate", "Moderately active", "3–5 workouts a week"],
+                  ["heavy", "Very active", "Hard training most days, or physical work"],
+                  ["athlete", "Athlete", "Two-a-days, competition volume"],
+                ] as [Activity, string, string][]
+              ).map(([value, label, hint]) => (
+                <OptionCard key={value} selected={draft.activity === value} onClick={() => choose("activity", value)} hint={hint}>
+                  {label}
+                </OptionCard>
+              ))}
             </div>
-            <div>
-              <Label htmlFor="salt">Added salt per day (grams)</Label>
-              <TextInput
-                id="salt"
-                inputMode="decimal"
-                placeholder="6"
+          </>
+        )}
+
+        {screen.id === "goal" && (
+          <>
+            <QuestionTitle>What&rsquo;s your main goal?</QuestionTitle>
+            <div className="flex flex-col gap-2.5">
+              {(
+                [
+                  ["lose", "Lose fat"],
+                  ["maintain", "Maintain and feel good"],
+                  ["gain", "Build muscle"],
+                ] as [Goal, string][]
+              ).map(([value, label]) => (
+                <OptionCard key={value} selected={draft.goal === value} onClick={() => choose("goal", value)}>
+                  {label}
+                </OptionCard>
+              ))}
+            </div>
+          </>
+        )}
+
+        {screen.id === "tenure" && (
+          <>
+            <QuestionTitle sub="Deficiencies arrive on different clocks — electrolytes bite in the first week, folate takes three months, calcium is measured in years.">
+              How long have you been carnivore?
+            </QuestionTitle>
+            <div className="flex flex-col gap-2.5">
+              {(
+                [
+                  ["under1m", "Under a month"],
+                  ["1to3m", "1–3 months"],
+                  ["3to12m", "3–12 months"],
+                  ["over1y", "Over a year"],
+                ] as [Tenure, string][]
+              ).map(([value, label]) => (
+                <OptionCard key={value} selected={draft.tenure === value} onClick={() => choose("tenure", value)}>
+                  {label}
+                </OptionCard>
+              ))}
+            </div>
+          </>
+        )}
+
+        {screen.id === "salt-type" && (
+          <>
+            <QuestionTitle sub="The highest-leverage question in this quiz. Iodised salt averages 52mcg of iodine per gram; non-iodised sea salt averages 0.015.">
+              Which salt do you use?
+            </QuestionTitle>
+            <div className="flex flex-col gap-2.5">
+              {(
+                [
+                  ["pink", "Pink / Himalayan"],
+                  ["sea", "Sea salt"],
+                  ["iodized", "Iodised table salt"],
+                  ["unknown", "Not sure"],
+                ] as [SaltType, string][]
+              ).map(([value, label]) => (
+                <OptionCard key={value} selected={draft.saltType === value} onClick={() => choose("saltType", value)}>
+                  {label}
+                </OptionCard>
+              ))}
+            </div>
+          </>
+        )}
+
+        {screen.id === "salt-amount" && (
+          <>
+            <QuestionTitle sub="A rounded teaspoon is about 6g. Guess if you have to — a guess is far better than leaving it out.">
+              How much salt do you add per day?
+            </QuestionTitle>
+            <div className="mx-auto max-w-[300px]">
+              <BigInput
                 value={draft.saltGrams}
-                onChange={(e) => set("saltGrams", e.target.value)}
-                className="max-w-[200px]"
+                onChange={(v) => set("saltGrams", v)}
+                unit="g"
+                placeholder="6"
+                onEnter={() => ctaEnabled && forward(index, draft)}
               />
-              <p className="mt-2 text-[11px] leading-relaxed text-salt">
-                A rounded teaspoon is about 6g. Guess if you have to — a guess is far better than
-                leaving it out.
+              <p className="mt-2 text-center text-[11px] text-salt">Please enter a value from 0 to 60 g</p>
+            </div>
+          </>
+        )}
+
+        {screen.id === "trust" && (
+          <div className="text-center">
+            <QuestionTitle>Your numbers are computed, not guessed</QuestionTitle>
+            <div className="mx-auto max-w-[420px] border border-edge border-l-[3px] border-l-blood bg-smoke p-5 text-left">
+              <p className="text-[13px] leading-relaxed text-bone">
+                Next comes the part that matters — what you actually eat. A model reads your
+                description, but every vitamin and mineral figure is computed from a USDA
+                composition table against published reference intakes.
+              </p>
+              <p className="mt-3 text-[12px] leading-relaxed text-salt">
+                Ask twice, get the same answer. No fibre guilt, no B12 false alarms — this tool is
+                built for this diet, and every source is named at the bottom of the page.
               </p>
             </div>
           </div>
         )}
 
-        {step === 2 && (
-          <div className="flex flex-col gap-3">
-            <Label htmlFor="diet">What do you eat on a normal day?</Label>
-            <p className="-mt-1 text-[11px] leading-relaxed text-salt">
-              Plain sentences. Name the cuts, rough weights, and how often for anything you eat
-              weekly rather than daily — &ldquo;liver once a fortnight&rdquo; is exactly the kind
-              of detail that changes the result.
-            </p>
-            <TextArea
-              id="diet"
+        {screen.id === "diet" && (
+          <>
+            <QuestionTitle sub="Plain sentences. Name the cuts, rough weights, and how often for anything weekly — “liver once a fortnight” is exactly the detail that changes the result.">
+              What do you eat on a normal day?
+            </QuestionTitle>
+            <textarea
               rows={8}
+              autoFocus
               placeholder={EXAMPLE}
               value={draft.dietText}
               onChange={(e) => set("dietText", e.target.value)}
+              aria-label="Your daily food"
+              className={textAreaClass}
             />
-            <div className="flex items-center justify-between gap-3 text-[11px] text-salt">
+            <div className="mt-2 flex items-center justify-between gap-3 text-[11px] text-salt">
               <button
                 type="button"
                 onClick={() => set("dietText", EXAMPLE)}
@@ -367,202 +677,212 @@ export function Quiz({
               </button>
               <span>{draft.dietText.trim().length}/4000</span>
             </div>
-            {!dietReady && draft.dietText.length > 0 && (
-              <p className="text-[11px] text-warn">A little more detail than that.</p>
-            )}
-          </div>
+          </>
         )}
 
-        {step === 3 && (
-          <div className="flex flex-col gap-5">
-            <div>
-              <Label>Anything you have been feeling</Label>
-              <p className="mb-2.5 text-[11px] leading-relaxed text-salt">
-                Recorded either way. Where a symptom lines up with something the numbers already
-                flagged, the report says so — and where it does not, it says that too.
-              </p>
-              <div className="flex flex-wrap gap-1.5">
-                {SYMPTOMS.map((symptom) => (
-                  <Toggle
-                    key={symptom.id}
-                    pressed={draft.symptoms.includes(symptom.id)}
-                    onToggle={() => toggleSymptom(symptom.id)}
-                  >
-                    {symptom.label}
-                  </Toggle>
-                ))}
-              </div>
+        {screen.id === "symptoms" && (
+          <>
+            <QuestionTitle sub="Choose all that apply. Where one lines up with what the numbers flag, the report says so — and where it doesn’t, it says that too.">
+              Have you been feeling any of these?
+            </QuestionTitle>
+            <div className="flex flex-col gap-2">
+              {SYMPTOMS.map((symptom) => (
+                <OptionCard
+                  key={symptom.id}
+                  multi
+                  selected={draft.symptoms.includes(symptom.id)}
+                  onClick={() => toggleSymptom(symptom.id)}
+                >
+                  {symptom.label}
+                </OptionCard>
+              ))}
+              <button
+                type="button"
+                onClick={() => clearGroupAndAdvance(symptomIds)}
+                className="mt-1 flex w-full items-center justify-center border border-ash bg-char py-4 text-[13px] font-bold tracking-[0.06em] text-salt uppercase transition-colors duration-150 hover:border-bone hover:text-bone focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ember"
+              >
+                None of these
+              </button>
             </div>
-
-            <div className="border border-ember/40 bg-ember/[0.04] p-3.5">
-              <Label>Any of these?</Label>
-              <p className="mb-2.5 text-[11px] leading-relaxed text-salt">
-                These are not diet problems. If you tick one, the report will say so at the top
-                and will not offer you a nutrient to chase instead.
-              </p>
-              <div className="flex flex-wrap gap-1.5">
-                {RED_FLAGS.map((flag) => (
-                  <Toggle
-                    key={flag.id}
-                    pressed={draft.symptoms.includes(flag.id)}
-                    onToggle={() => toggleSymptom(flag.id)}
-                  >
-                    {flag.label}
-                  </Toggle>
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <Label htmlFor="other">Anything else</Label>
-              <TextArea
-                id="other"
-                rows={3}
-                placeholder="Optional."
-                value={draft.otherSymptoms}
-                onChange={(e) => set("otherSymptoms", e.target.value)}
-              />
-            </div>
-          </div>
+          </>
         )}
 
-        {step === 4 && (
-          <div className="flex flex-col gap-6">
-            <div className="flex flex-col gap-3">
-              <ChoiceGroup
-                legend="Do you take any supplements?"
-                value={draft.takesSupplements}
-                onChange={(v) => set("takesSupplements", v)}
-                choices={[
-                  { value: "no", label: "No" },
-                  { value: "yes", label: "Yes" },
-                ]}
-              />
-              {draft.takesSupplements === "yes" && (
-                <>
-                  <Label htmlFor="supps">What, and how much?</Label>
-                  <p className="-mt-1 text-[11px] leading-relaxed text-salt">
-                    Quote the label &mdash; &ldquo;magnesium glycinate 400mg&rdquo;, &ldquo;D3
-                    5000 IU&rdquo;. Anything with a stated amount is counted into your numbers;
-                    a &ldquo;multivitamin&rdquo; with no amounts can only be noted, not counted.
-                  </p>
-                  <TextArea
-                    id="supps"
-                    rows={4}
-                    placeholder="Magnesium glycinate 400mg at night, vitamin D 5000 IU, LMNT most mornings."
-                    value={draft.supplements}
-                    onChange={(e) => set("supplements", e.target.value)}
-                  />
-                </>
-              )}
+        {screen.id === "redflags" && (
+          <>
+            <QuestionTitle sub="These are not diet problems. Tick one and the report will say so at the top instead of offering a nutrient to chase.">
+              Any of these, right now?
+            </QuestionTitle>
+            <div className="flex flex-col gap-2">
+              {RED_FLAGS.map((flag) => (
+                <OptionCard
+                  key={flag.id}
+                  multi
+                  tone="danger"
+                  selected={draft.symptoms.includes(flag.id)}
+                  onClick={() => toggleSymptom(flag.id)}
+                >
+                  {flag.label}
+                </OptionCard>
+              ))}
+              <button
+                type="button"
+                onClick={() => clearGroupAndAdvance(redFlagIds)}
+                className="mt-1 flex w-full items-center justify-center border border-ash bg-char py-4 text-[13px] font-bold tracking-[0.06em] text-salt uppercase transition-colors duration-150 hover:border-bone hover:text-bone focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ember"
+              >
+                No — none of these
+              </button>
             </div>
+          </>
+        )}
 
-            <div className="flex flex-col gap-3 border-t border-edge pt-5">
-              <ChoiceGroup
-                legend="Any cheat meals or time off the diet?"
-                value={draft.hadOffDays}
-                onChange={(v) => set("hadOffDays", v)}
-                choices={[
-                  { value: "no", label: "No, strict" },
-                  { value: "yes", label: "Yes" },
-                ]}
-              />
-              {draft.hadOffDays === "yes" && (
-                <>
-                  <Label htmlFor="offdays">Roughly what and how often?</Label>
-                  <p className="-mt-1 text-[11px] leading-relaxed text-salt">
-                    &ldquo;Pizza most Saturdays&rdquo;, &ldquo;two weeks off over the
-                    holidays&rdquo;. This is context for reading your symptoms and timeline
-                    &mdash; a weekly carb night changes what &ldquo;three months strict&rdquo;
-                    means. It is not added to the daily numbers.
-                  </p>
-                  <TextArea
-                    id="offdays"
-                    rows={3}
-                    placeholder="A burger with the bun maybe twice a month. One week fully off in July."
-                    value={draft.offDays}
-                    onChange={(e) => set("offDays", e.target.value)}
-                  />
-                </>
-              )}
+        {screen.id === "supp-gate" && (
+          <>
+            <QuestionTitle sub="Anything with a stated amount gets counted straight into your numbers.">
+              Do you take any supplements?
+            </QuestionTitle>
+            <div className="flex flex-col gap-2.5">
+              <OptionCard selected={draft.takesSupplements === "yes"} onClick={() => choose("takesSupplements", "yes")}>Yes</OptionCard>
+              <OptionCard selected={draft.takesSupplements === "no"} onClick={() => choose("takesSupplements", "no")}>No</OptionCard>
             </div>
+          </>
+        )}
 
-            <div className="flex flex-col gap-3 border-t border-edge pt-5">
-              <ChoiceGroup
-                legend="Alcohol?"
-                value={draft.alcohol === "none" ? "no" : "yes"}
-                onChange={(v) => set("alcohol", v === "no" ? "none" : "occasional")}
-                choices={[
-                  { value: "no", label: "No" },
-                  { value: "yes", label: "Yes" },
-                ]}
-              />
-              {draft.alcohol !== "none" && (
-                <div>
-                  <ChoiceGroup
-                    legend="How much, honestly"
-                    value={draft.alcohol}
-                    onChange={(v) => set("alcohol", v)}
-                    choices={[
-                      { value: "occasional", label: "A few a month" },
-                      { value: "weekly", label: "A few a week" },
-                      { value: "daily", label: "1–2 most days" },
-                      { value: "heavy", label: "3+ most days" },
-                    ]}
-                  />
-                  <p className="mt-2 text-[11px] leading-relaxed text-salt">
-                    Not a judgement question. Alcohol drains exactly what this diet is shortest
-                    on &mdash; magnesium, zinc, B1 &mdash; so the report reads differently at
-                    &ldquo;most days&rdquo; than at &ldquo;a few a month&rdquo;.
-                  </p>
-                </div>
-              )}
+        {screen.id === "supp-text" && (
+          <>
+            <QuestionTitle sub="Quote the label — “magnesium glycinate 400mg”, “D3 5000 IU”. A “multivitamin” with no amounts can only be noted, not counted.">
+              What, and how much?
+            </QuestionTitle>
+            <textarea
+              rows={4}
+              autoFocus
+              placeholder="Magnesium glycinate 400mg at night, vitamin D 5000 IU, LMNT most mornings."
+              value={draft.supplements}
+              onChange={(e) => set("supplements", e.target.value)}
+              aria-label="Your supplements"
+              className={textAreaClass}
+            />
+          </>
+        )}
+
+        {screen.id === "offdays-gate" && (
+          <>
+            <QuestionTitle sub="Context for reading your symptoms and timeline — it is not added to the daily numbers, and nobody here is judging.">
+              Any cheat meals or time off the diet?
+            </QuestionTitle>
+            <div className="flex flex-col gap-2.5">
+              <OptionCard selected={draft.hadOffDays === "yes"} onClick={() => choose("hadOffDays", "yes")}>Yes</OptionCard>
+              <OptionCard selected={draft.hadOffDays === "no"} onClick={() => choose("hadOffDays", "no")}>No, strict</OptionCard>
             </div>
+          </>
+        )}
 
-            <p className="border-t border-edge pt-4 text-[11px] leading-relaxed text-salt">
-              Your answers are processed to build this report and are not stored. No account, no
-              email, nothing to unsubscribe from.
+        {screen.id === "offdays-text" && (
+          <>
+            <QuestionTitle sub="“Pizza most Saturdays”, “two weeks off over the holidays” — a weekly carb night changes what “three months strict” means.">
+              Roughly what, and how often?
+            </QuestionTitle>
+            <textarea
+              rows={3}
+              autoFocus
+              placeholder="A burger with the bun maybe twice a month. One week fully off in July."
+              value={draft.offDays}
+              onChange={(e) => set("offDays", e.target.value)}
+              aria-label="Your off days"
+              className={textAreaClass}
+            />
+          </>
+        )}
+
+        {screen.id === "alcohol-gate" && (
+          <>
+            <QuestionTitle>Do you drink alcohol?</QuestionTitle>
+            <div className="flex flex-col gap-2.5">
+              <OptionCard
+                selected={draft.alcohol !== "none"}
+                onClick={() => choose("alcohol", draft.alcohol === "none" ? "occasional" : draft.alcohol)}
+              >
+                Yes
+              </OptionCard>
+              <OptionCard selected={draft.alcohol === "none"} onClick={() => choose("alcohol", "none")}>No</OptionCard>
+            </div>
+          </>
+        )}
+
+        {screen.id === "alcohol-amount" && (
+          <>
+            <QuestionTitle sub="Not a judgement question. Alcohol drains exactly what this diet is shortest on — magnesium, zinc, B1 — so the report reads differently at “most days” than at “a few a month”.">
+              How much, honestly?
+            </QuestionTitle>
+            <div className="flex flex-col gap-2.5">
+              {(
+                [
+                  ["occasional", "A few a month"],
+                  ["weekly", "A few a week"],
+                  ["daily", "1–2 most days"],
+                  ["heavy", "3+ most days"],
+                ] as [AlcoholLevel, string][]
+              ).map(([value, label]) => (
+                <OptionCard key={value} selected={draft.alcohol === value} onClick={() => choose("alcohol", value)}>
+                  {label}
+                </OptionCard>
+              ))}
+            </div>
+          </>
+        )}
+
+        {screen.id === "review" && (
+          <>
+            <QuestionTitle sub="Two model calls and a pile of arithmetic — about ten seconds.">
+              Ready to run it
+            </QuestionTitle>
+            <ul className="flex flex-col border border-edge bg-smoke">
+              {recap.map((row) => (
+                <li
+                  key={row.label}
+                  className="flex items-baseline justify-between gap-4 border-b border-edge px-4 py-3 last:border-b-0"
+                >
+                  <span className="text-[10px] tracking-[0.18em] text-salt uppercase">{row.label}</span>
+                  <span className="text-right text-[12px] text-bone">{row.value}</span>
+                </li>
+              ))}
+            </ul>
+            <p className="mt-3 text-[11px] leading-relaxed text-salt">
+              Your answers are processed to build the report and are not stored. No account, no
+              email. Use the arrow up top to change anything.
             </p>
-          </div>
+            {error && (
+              <p role="alert" className="mt-3 border border-ember bg-ember/[0.06] px-3.5 py-2.5 text-[12px] text-ember">
+                {error}
+              </p>
+            )}
+          </>
         )}
       </div>
 
-      {error && (
-        <p role="alert" className="mt-3 text-[12px] text-ember">
-          {error}
-        </p>
+      {/* ---- pinned CTA -------------------------------------------------- */}
+      {(needsCta || screen.id === "review") && (
+        <div className="sticky bottom-0 mt-7 border-t border-edge bg-char/95 py-3 backdrop-blur-sm">
+          {screen.id === "review" ? (
+            <button
+              type="button"
+              onClick={onSubmit}
+              disabled={pending || !ctaEnabled}
+              className="w-full border border-ember bg-ember px-6 py-4 font-display text-[13px] tracking-[0.14em] text-char uppercase transition-colors duration-150 hover:bg-blood focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ember disabled:opacity-60"
+            >
+              {pending ? "Analysing…" : "Analyse my diet"}
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => forward(index, draft)}
+              disabled={!ctaEnabled}
+              className="w-full border border-ember bg-ember px-6 py-4 font-display text-[13px] tracking-[0.14em] text-char uppercase transition-colors duration-150 hover:bg-blood focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ember disabled:cursor-not-allowed disabled:border-edge disabled:bg-smoke disabled:text-ash"
+            >
+              {screen.id === "trust" ? "Continue" : "Next step"}
+            </button>
+          )}
+        </div>
       )}
-
-      <div className="mt-4 flex items-center justify-between gap-3">
-        <button
-          type="button"
-          onClick={() => setStep((s) => Math.max(0, s - 1))}
-          disabled={step === 0 || pending}
-          className="text-[11px] tracking-[0.16em] text-salt uppercase underline-offset-4 hover:text-ember hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ember disabled:invisible"
-        >
-          &larr; Back
-        </button>
-
-        {step < STEPS.length - 1 ? (
-          <button
-            type="button"
-            onClick={() => setStep((s) => s + 1)}
-            disabled={!canAdvance}
-            className="border border-ember bg-ember px-6 py-3 font-display text-[12px] tracking-[0.14em] whitespace-nowrap text-char uppercase transition-colors duration-150 hover:bg-blood focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ember disabled:opacity-50"
-          >
-            Next
-          </button>
-        ) : (
-          <button
-            type="button"
-            onClick={onSubmit}
-            disabled={pending || !dietReady}
-            className="border border-ember bg-ember px-6 py-3 font-display text-[12px] tracking-[0.14em] whitespace-nowrap text-char uppercase transition-colors duration-150 hover:bg-blood focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ember disabled:opacity-60"
-          >
-            {pending ? "Analysing…" : "Analyse my diet"}
-          </button>
-        )}
-      </div>
     </div>
   );
 }
