@@ -186,6 +186,7 @@
 
 /* Legal pages (privacy, terms): plain readable copy in the site palette. */
 .prose-legal h2 { margin-top: 1.75rem; font-size: 17px; font-weight: 800; letter-spacing: -0.01em; }
+.prose-legal h3 { margin-top: 1.1rem; font-size: 15px; font-weight: 700; }
 .prose-legal p, .prose-legal li { margin-top: 0.6rem; font-size: 15px; line-height: 1.6; color: var(--color-ink, #1d1a16); }
 .prose-legal ul { margin-top: 0.4rem; padding-left: 1.1rem; list-style: disc; }
 .prose-legal a { text-decoration: underline; text-underline-offset: 3px; }
