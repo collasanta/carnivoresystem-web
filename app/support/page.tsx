@@ -2,54 +2,30 @@ import type { Metadata } from "next";
 
 export const metadata: Metadata = {
   title: "Leo Support — The Carnivore System",
-  description: "Help for the Leo carnivore diet tracker app: common questions, account and data, contact.",
+  description: "Help for the Leo — Carnivore Diet Tracker app.",
 };
 
 const FAQ: { q: string; a: string }[] = [
-  {
-    q: "Do I need an account?",
-    a: "No. Leo stores everything on your phone. Sign in only if you want a cloud backup to restore on a new phone.",
-  },
-  {
-    q: "How are the water and salt targets calculated?",
-    a: "From your weight, training and how long you have been carnivore, using the high end of the usual ranges for a zero-carb diet. You can change both in Settings → Goals. This is general guidance, not medical advice.",
-  },
-  {
-    q: "Why half a teaspoon in 500 ml (16 oz) and not more?",
-    a: "Salt water above roughly 100 mmol/L of sodium pulls water into the gut and can cause loose stools. Half a teaspoon in a glass or one teaspoon in a 1 L (32 oz) bottle stays under that line. Sip it, ideally with food.",
-  },
-  {
-    q: "I don't want to log every meal.",
-    a: "Use \"Don't want to log meals?\" at the bottom of the Meals card. One tap confirms the day as 100% carnivore and counts as fed.",
-  },
-  {
-    q: "Can I change the time of a meal I logged?",
-    a: "Yes. Tap the meal to edit what it was and when. Long-press \"Add\" to log a meal with a specific time.",
-  },
-  {
-    q: "The sign-in e-mail didn't arrive.",
-    a: "Check the spam folder for a message from leo@thecarnivoresystem.com. Codes expire after 10 minutes; request a new one if needed.",
-  },
-  {
-    q: "How do I delete my data?",
-    a: "Settings → \"Erase all data\" wipes the phone. Settings → Account → \"Delete account\" removes the cloud backup and the account permanently.",
-  },
-  {
-    q: "ml or fl oz?",
-    a: "Leo follows your iPhone's measurement system. Force either one in Settings → Units.",
-  },
+  { q: "Why three salted glasses?", a: "On a carnivore diet you lose sodium faster. Leo spreads your salt through the day in three glasses of water so you avoid the afternoon crash and cramps. Salt your food generously too." },
+  { q: "The salted glass gives me loose stools", a: "Too much salt in too little water works as a laxative. Keep to ½ teaspoon per 500 ml (16 fl oz) glass, sip it over a few minutes, ideally with food. If you use a 1 L bottle, 1 teaspoon is the maximum." },
+  { q: "I don't want to log every meal", a: "You don't have to. At the end of the day tap \"Don't want to log meals?\" and confirm you ate 100% carnivore. That counts as fed." },
+  { q: "How do I fix the time of a meal?", a: "Tap the meal to edit what you ate and when. Long-press \"Add\" to log a meal with a specific time." },
+  { q: "Do I need an account?", a: "No. Everything stays on your phone. Signing in (Apple or e-mail code) only adds cloud backup so you can restore on a new phone." },
+  { q: "I didn't get the sign-in code", a: "Check your spam folder; the sender is leo@thecarnivoresystem.com. The code lasts 10 minutes." },
+  { q: "How do I switch between ml and fl oz?", a: "Settings → Units. \"Automatic\" follows your iPhone's measurement system." },
+  { q: "How do I delete my data?", a: "Settings → Erase all data removes everything on the phone. Settings → Delete account removes the cloud backup and the account." },
 ];
 
 export default function Support() {
   return (
     <article className="prose-legal w-full max-w-[640px]">
       <h1 className="text-[clamp(26px,7vw,34px)] leading-[1.1] font-extrabold tracking-[-0.03em]">Leo Support</h1>
-      <p className="mt-2 text-[13px] text-mute">Carnivore Diet Tracker for iPhone</p>
+      <p className="mt-2 text-[13px] text-mute">Leo — Carnivore Diet Tracker for iPhone</p>
 
       <h2>Contact</h2>
       <p>
-        E-mail <a href="mailto:victor@33web.dev">victor@33web.dev</a> and include your iPhone model and iOS version.
-        We answer within two business days. Bugs and ideas are welcome.
+        E-mail <a href="mailto:leo@thecarnivoresystem.com">leo@thecarnivoresystem.com</a>. We answer within two business
+        days. Include your iPhone model and iOS version if it is a bug.
       </p>
 
       <h2>Common questions</h2>
@@ -60,9 +36,14 @@ export default function Support() {
         </div>
       ))}
 
-      <h2>Privacy</h2>
+      <h2>Health notice</h2>
       <p>
-        What Leo stores, where, and how to delete it: <a href="/privacy">Privacy Policy</a>. Terms: <a href="/terms">Terms of Use</a>.
+        Leo is a habit journal, not medical advice. If you have high blood pressure, kidney or heart disease, are pregnant
+        or take diuretics, talk to your doctor before increasing salt.
+      </p>
+
+      <p>
+        <a href="/privacy">Privacy policy</a> · <a href="/terms">Terms of use</a>
       </p>
     </article>
   );
