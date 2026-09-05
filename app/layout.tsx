@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Analytics } from "@vercel/analytics/next";
+import { headers } from "next/headers";
 import { SiteHeader } from "@/components/site-header";
 import { Plus_Jakarta_Sans } from "next/font/google";
 import "./globals.css";
@@ -22,11 +23,13 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default async function RootLayout({ children }: LayoutProps<"/">) {
+  const host = (await headers()).get("host") ?? "";
+  const isLeo = host.endsWith("leodiet.com");
   return (
     <html lang="en" className={`${jakarta.variable} h-full antialiased`}>
       <body className="min-h-svh font-[family-name:var(--font-jakarta)] text-ink">
-        <SiteHeader />
+        {isLeo ? null : <SiteHeader />}
         <div className="flex flex-col items-center px-5 pt-8 pb-10">{children}</div>
         <Analytics />
       </body>

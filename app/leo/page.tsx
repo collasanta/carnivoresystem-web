@@ -46,8 +46,8 @@ export default function Leo() {
       </header>
 
       <section className="mt-10 grid grid-cols-2 gap-3">
-        <Image src="/leo-shot-1.png" alt="Today: salted glasses and water" width={1320} height={2868} className="rounded-[22px] border border-line" />
-        <Image src="/leo-shot-2.png" alt="History heatmap of clean days" width={1320} height={2868} className="rounded-[22px] border border-line" />
+        <Image src="/leo-shot-1.png" alt="Today: salted glasses and water" width={414} height={900} unoptimized className="rounded-[22px] border border-line" />
+        <Image src="/leo-shot-2.png" alt="History heatmap of clean days" width={414} height={900} unoptimized className="rounded-[22px] border border-line" />
       </section>
 
       <section className="mt-10 flex flex-col gap-3">
