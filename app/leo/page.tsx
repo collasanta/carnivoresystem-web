@@ -17,15 +17,48 @@ export const metadata: Metadata = {
 
 const APP_STORE = "https://apps.apple.com/app/id6808867448";
 
-const POINTS = [
-  { head: "Salt done right", body: "½ teaspoon per 500 ml glass, three times a day. The concentration your gut tolerates — never the salt-water-flush mistake." },
-  { head: "Log a day in two taps", body: "Meals in one tap, or just confirm you ate 100% carnivore. Cheated? One honest button and a red square." },
-  { head: "See your pattern", body: "A heatmap of clean days and slips, streaks, weight, and how you felt — so you finally know what changes when you slip." },
+const FEATURES = [
+  {
+    head: "Salt done right",
+    body: "Three salted glasses a day at the concentration your gut tolerates: ½ teaspoon per 500 ml glass, never the salt-water-flush mistake. Plain water in between, reminders that stop when you hit your goal.",
+    img: "/leo-shot-1.png",
+    alt: "Today: three salted glasses and the water bar",
+  },
+  {
+    head: "Log a day in two taps",
+    body: "Meals in one tap with the time you ate, or skip logging and just confirm you ate 100% carnivore. Cheated? One honest button and a red square on the map. No calories, no macros, no food database.",
+    img: "/leo-02-meals.png",
+    alt: "Meals card with the honest cheat button",
+  },
+  {
+    head: "How do you feel?",
+    body: "Mood on a five-point scale, symptoms like cramps, headache, brain fog or cravings, and stools. Over time you see what changed when you fixed your salt, and what comes back after a slip.",
+    img: "/leo-03-feel.png",
+    alt: "How do you feel: mood, symptoms and stools",
+  },
+  {
+    head: "Weight, one wheel a day",
+    body: "A morning weigh-in in two seconds. Leo shows the change since your last weigh-in, the trend for the month or the year, and puts the result on your share card.",
+    img: "/leo-weight.png",
+    alt: "Weight card at the top of Today",
+  },
+  {
+    head: "See your real pattern",
+    body: "A heatmap of perfect, clean and cheat days by month or year, streaks, weight curve and a cramps insight. History is earned day by day: nothing can be backfilled, so every green square is real.",
+    img: "/leo-weight-chart.png",
+    alt: "History: year heatmap and weight chart",
+  },
+  {
+    head: "Share it",
+    body: "A story or a square post with your clean days, longest streak and weight change. The card people in carnivore groups actually screenshot.",
+    img: "/leo-06-share.png",
+    alt: "Share card with clean days, streak and weight change",
+  },
 ];
 
 export default function Leo() {
   return (
-    <div className="w-full max-w-[520px]">
+    <div className="w-full max-w-[640px]">
       <header className="text-center">
         <Image src="/leo-icon.png" alt="Leo" width={84} height={84} className="mx-auto rounded-[22px] shadow-[0_8px_24px_rgba(33,26,18,0.12)]" priority />
         <div className="mt-4 text-[11px] font-semibold tracking-[0.16em] text-mute uppercase">LeoDiet.com</div>
@@ -45,19 +78,22 @@ export default function Leo() {
         <p className="mt-2 text-[12px] text-faint">Free · iPhone · English, Português, Español</p>
       </header>
 
-      <section className="mt-10 grid grid-cols-2 gap-3">
-        <Image src="/leo-shot-1.png" alt="Today: salted glasses and water" width={414} height={900} unoptimized className="rounded-[22px] border border-line" />
-        <Image src="/leo-shot-2.png" alt="History heatmap of clean days" width={414} height={900} unoptimized className="rounded-[22px] border border-line" />
-      </section>
-
-      <section className="mt-10 flex flex-col gap-3">
-        {POINTS.map((p) => (
-          <div key={p.head} className="rounded-[18px] border border-line bg-card p-5">
-            <h2 className="text-[16px] font-bold">{p.head}</h2>
-            <p className="mt-1 text-[14px] leading-relaxed text-mute">{p.body}</p>
+      <section className="mt-12 flex flex-col gap-10">
+        {FEATURES.map((f, i) => (
+          <div key={f.head} className={`flex flex-col items-center gap-5 sm:flex-row ${i % 2 ? "sm:flex-row-reverse" : ""}`}>
+            <Image src={f.img} alt={f.alt} width={414} height={900} unoptimized className="w-[220px] flex-none rounded-[26px] border border-line shadow-[0_12px_32px_rgba(33,26,18,0.08)]" />
+            <div className="text-center sm:text-left">
+              <h2 className="text-[20px] font-extrabold tracking-[-0.02em]">{f.head}</h2>
+              <p className="mt-2 text-[14px] leading-relaxed text-mute">{f.body}</p>
+            </div>
           </div>
         ))}
       </section>
+
+      <div className="mt-12 text-center">
+        <a href={APP_STORE} className="inline-flex items-center gap-3 rounded-full bg-cta px-6 py-4 text-[16px] font-bold text-white shadow-[0_10px_30px_rgba(37,30,23,0.25)] transition hover:bg-ctah">Download on the App Store</a>
+        <p className="mt-2 text-[12px] text-faint">Free · No account needed · English, Português, Español</p>
+      </div>
 
       <p className="mt-8 text-center text-[12px] leading-relaxed text-faint">
         Leo is a habit journal, not medical advice. With high blood pressure, kidney or heart conditions, talk to your doctor before increasing salt.
