@@ -16,7 +16,7 @@ export default function Privacy() {
       <h2>Who we are</h2>
       <p>
         The Carnivore System website and the <strong>Leo — Carnivore Diet Tracker</strong> iOS app are operated by
-        33WEB SOFTWARE LTDA (&ldquo;we&rdquo;), Brazil. Contact: <a href="mailto:leo@thecarnivoresystem.com">leo@thecarnivoresystem.com</a>.
+        33WEB SOFTWARE LTDA (&ldquo;we&rdquo;), Brazil. Contact: <a href="mailto:leo@leodiet.com">leo@leodiet.com</a>.
       </p>
 
       <h2>Leo app: local first</h2>
@@ -95,7 +95,7 @@ export default function Privacy() {
       <h2>Your rights</h2>
       <p>
         You can access, export or delete your data at any time from the app, or by writing to
-        <a href="mailto:leo@thecarnivoresystem.com"> leo@thecarnivoresystem.com</a>. We answer within 30 days.
+        <a href="mailto:leo@leodiet.com"> leo@leodiet.com</a>. We answer within 30 days.
       </p>
 
       <h2>Children</h2>

@@ -11,7 +11,7 @@ const FAQ: { q: string; a: string }[] = [
   { q: "I don't want to log every meal", a: "You don't have to. At the end of the day tap \"Don't want to log meals?\" and confirm you ate 100% carnivore. That counts as fed." },
   { q: "How do I fix the time of a meal?", a: "Tap the meal to edit what you ate and when. Long-press \"Add\" to log a meal with a specific time." },
   { q: "Do I need an account?", a: "No. Everything stays on your phone. Signing in (Apple or e-mail code) only adds cloud backup so you can restore on a new phone." },
-  { q: "I didn't get the sign-in code", a: "Check your spam folder; the sender is leo@thecarnivoresystem.com. The code lasts 10 minutes." },
+  { q: "I didn't get the sign-in code", a: "Check your spam folder; the sender is leo@leodiet.com. The code lasts 10 minutes." },
   { q: "How do I switch between ml and fl oz?", a: "Settings → Units. \"Automatic\" follows your iPhone's measurement system." },
   { q: "How do I delete my data?", a: "Settings → Erase all data removes everything on the phone. Settings → Delete account removes the cloud backup and the account." },
 ];
@@ -24,7 +24,7 @@ export default function Support() {
 
       <h2>Contact</h2>
       <p>
-        E-mail <a href="mailto:leo@thecarnivoresystem.com">leo@thecarnivoresystem.com</a>. We answer within two business
+        E-mail <a href="mailto:leo@leodiet.com">leo@leodiet.com</a>. We answer within two business
         days. Include your iPhone model and iOS version if it is a bug.
       </p>
 
