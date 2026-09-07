@@ -64,6 +64,13 @@ export default function Privacy() {
         track you across other apps or websites.
       </p>
 
+      <h2>Subscriptions</h2>
+      <p>
+        Purchases go through Apple; we never see your card. To know whether your subscription is active we use
+        RevenueCat, which receives an anonymous app user id and the receipt Apple issues. RevenueCat does not get your
+        name or e-mail from us. See <a href="https://www.revenuecat.com/privacy" target="_blank" rel="noreferrer">RevenueCat&rsquo;s privacy policy</a>.
+      </p>
+
       <h2>Notifications and sharing</h2>
       <ul>
         <li>If you enable reminders, Leo schedules local notifications on your phone. No push service is involved.</li>

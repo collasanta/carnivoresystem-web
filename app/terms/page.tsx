@@ -39,6 +39,17 @@ export default function Terms() {
         the App Store terms. You may not reverse-engineer, resell or redistribute it.
       </p>
 
+      <h2>Subscription and free trial</h2>
+      <p>
+        LeoDiet is sold as an auto-renewing subscription (LeoDiet Pro, yearly or monthly) purchased through Apple. New
+        subscriptions start with a 7-day free trial; if you cancel before the trial ends you are not charged. After the
+        trial, payment is charged to your Apple ID and the subscription renews automatically at the same price and
+        period unless you cancel at least 24 hours before the end of the current period. You manage or cancel it in your
+        device Settings › Apple ID › Subscriptions; deleting the app does not cancel it. Prices are shown in your local
+        currency before you confirm and may differ by country. Refunds are handled by Apple under App Store rules.
+        People who installed the app before the subscription was introduced keep full access at no charge.
+      </p>
+
       <h2>Content you share</h2>
       <p>
         Images you create with the share feature are yours. You may post them anywhere; we claim no rights over them.
