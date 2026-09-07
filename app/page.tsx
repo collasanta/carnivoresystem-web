@@ -12,7 +12,7 @@ const MODULES = [
     href: "https://www.tiktok.com/@carnivoresystem",
   },
   {
-    name: "Leo — Carnivore Diet Tracker",
+    name: "LeoDiet — Carnivore Diet Tracker",
     detail: "iOS · salt, water & clean days",
     href: "https://leodiet.com",
     chip: "App Store",

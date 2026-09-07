@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 
 export const metadata: Metadata = {
   title: "Leo Support — The Carnivore System",
-  description: "Help for the Leo — Carnivore Diet Tracker app.",
+  description: "Help for the LeoDiet — Carnivore Diet Tracker app.",
 };
 
 const FAQ: { q: string; a: string }[] = [
@@ -20,7 +20,7 @@ export default function Support() {
   return (
     <article className="prose-legal w-full max-w-[640px]">
       <h1 className="text-[clamp(26px,7vw,34px)] leading-[1.1] font-extrabold tracking-[-0.03em]">Leo Support</h1>
-      <p className="mt-2 text-[13px] text-mute">Leo — Carnivore Diet Tracker for iPhone</p>
+      <p className="mt-2 text-[13px] text-mute">LeoDiet — Carnivore Diet Tracker for iPhone</p>
 
       <h2>Contact</h2>
       <p>

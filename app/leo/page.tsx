@@ -2,12 +2,12 @@ import type { Metadata } from "next";
 import Image from "next/image";
 
 export const metadata: Metadata = {
-  title: "Leo — Carnivore Diet Tracker",
+  title: "LeoDiet — Carnivore Diet Tracker",
   description:
     "Three salted glasses a day, water in between, and an honest record of your carnivore days. Free on the App Store.",
   alternates: { canonical: "https://leodiet.com" },
   openGraph: {
-    title: "Leo — Carnivore Diet Tracker",
+    title: "LeoDiet — Carnivore Diet Tracker",
     description: "Salt, water and clean days. The carnivore tracker that keeps you out of the cramps.",
     url: "https://leodiet.com",
     type: "website",

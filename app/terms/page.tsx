@@ -14,7 +14,7 @@ export default function Terms() {
       <p className="mt-2 text-[13px] text-mute">Last updated {UPDATED}</p>
 
       <p>
-        By using thecarnivoresystem.com or the <strong>Leo — Carnivore Diet Tracker</strong> app (together, the
+        By using thecarnivoresystem.com or the <strong>LeoDiet — Carnivore Diet Tracker</strong> app (together, the
         &ldquo;Services&rdquo;), operated by 33WEB SOFTWARE LTDA, you agree to these terms.
       </p>
 
