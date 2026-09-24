@@ -5,7 +5,7 @@ export const metadata: Metadata = {
   description: "How The Carnivore System website and the Leo app handle your data.",
 };
 
-const UPDATED = "September 5, 2026";
+const UPDATED = "September 24, 2026";
 
 export default function Privacy() {
   return (
@@ -71,6 +71,27 @@ export default function Privacy() {
         name or e-mail from us. See <a href="https://www.revenuecat.com/privacy" target="_blank" rel="noreferrer">RevenueCat&rsquo;s privacy policy</a>.
       </p>
 
+      <h2>Voice meal logging</h2>
+      <p>
+        Signed-in users can hold the mic next to &ldquo;Add a meal&rdquo; and say what they ate. Leo asks for your consent
+        and for microphone access the first time, and only records while you hold the button.
+      </p>
+      <ul>
+        <li>
+          The clip is sent to our server, which passes it (without your e-mail or account id) to <strong>xAI</strong> for
+          speech-to-text, then sends the resulting text to an AI model through <strong>OpenRouter</strong> to match it
+          to foods. The foods found are added to your log.
+        </li>
+        <li>
+          We do not store the recording or the transcript. We keep a usage record per request (time, language, clip size and
+          length, number of foods found) to enforce the daily limit and watch costs. It never contains audio or text.
+        </li>
+        <li>
+          xAI and OpenRouter process the data on our behalf; any temporary retention on their side follows their own
+          policies. We do not use your voice for advertising or to train models.
+        </li>
+      </ul>
+
       <h2>Notifications and sharing</h2>
       <ul>
         <li>If you enable reminders, Leo schedules local notifications on your phone. No push service is involved.</li>
@@ -82,6 +103,7 @@ export default function Privacy() {
         <li>Device data: until you erase it (Settings → Erase all data) or uninstall the app.</li>
         <li>Account and cloud backup: until you delete the account in Settings, or on request by e-mail.</li>
         <li>Analytics events: 1 year. Session replays: 30 days. Crash reports: 90 days.</li>
+        <li>Voice recordings and transcripts: not stored. Voice usage records: deleted with your account.</li>
       </ul>
 
       <h2>Health notice</h2>
