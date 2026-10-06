@@ -4,7 +4,7 @@ import Image from "next/image";
 export const metadata: Metadata = {
   title: "LeoDiet — Carnivore Diet Tracker",
   description:
-    "Three salted glasses a day, water in between, and an honest record of your carnivore days. Free on the App Store.",
+    "Three salted glasses a day, water in between, and an honest record of your carnivore days. Free on the App Store and Google Play.",
   alternates: { canonical: "https://leodiet.com" },
   openGraph: {
     title: "LeoDiet — Carnivore Diet Tracker",
@@ -16,6 +16,7 @@ export const metadata: Metadata = {
 };
 
 const APP_STORE = "https://apps.apple.com/app/id6808867448";
+const PLAY_STORE = "https://play.google.com/store/apps/details?id=dev.thirtythreeweb.leo&referrer=utm_source%3Dsite";
 
 const FEATURES = [
   {
@@ -68,14 +69,17 @@ export default function Leo() {
         <p className="mt-3 text-[15px] leading-relaxed text-mute text-balance">
           Three salted glasses a day, water in between, and an honest record of your carnivore days. No calorie counting. No account needed.
         </p>
-        <a
-          href={APP_STORE}
-          className="mt-6 inline-flex items-center gap-3 rounded-full bg-cta px-6 py-4 text-[16px] font-bold text-white shadow-[0_10px_30px_rgba(37,30,23,0.25)] transition hover:bg-ctah"
-        >
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16.4 12.6c0-2.6 2.1-3.8 2.2-3.9-1.2-1.8-3.1-2-3.7-2-1.6-.2-3.1.9-3.9.9-.8 0-2-.9-3.4-.9-1.7 0-3.3 1-4.2 2.6-1.8 3.1-.5 7.8 1.3 10.3.9 1.2 1.9 2.6 3.2 2.6 1.3-.1 1.8-.8 3.4-.8 1.6 0 2 .8 3.4.8 1.4 0 2.3-1.3 3.1-2.5 1-1.4 1.4-2.8 1.4-2.9 0 0-2.8-1.1-2.8-4.2zM14 4.9c.7-.9 1.2-2.1 1.1-3.3-1 0-2.3.7-3 1.6-.7.8-1.2 2-1.1 3.2 1.1.1 2.3-.6 3-1.5z" /></svg>
-          Download on the App Store
-        </a>
-        <p className="mt-2 text-[12px] text-faint">Free · iPhone · English, Português, Español</p>
+        <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+          <a href={APP_STORE} className="inline-flex items-center gap-3 rounded-full bg-cta px-6 py-4 text-[16px] font-bold text-white shadow-[0_10px_30px_rgba(37,30,23,0.25)] transition hover:bg-ctah">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16.4 12.6c0-2.6 2.1-3.8 2.2-3.9-1.2-1.8-3.1-2-3.7-2-1.6-.2-3.1.9-3.9.9-.8 0-2-.9-3.4-.9-1.7 0-3.3 1-4.2 2.6-1.8 3.1-.5 7.8 1.3 10.3.9 1.2 1.9 2.6 3.2 2.6 1.3-.1 1.8-.8 3.4-.8 1.6 0 2 .8 3.4.8 1.4 0 2.3-1.3 3.1-2.5 1-1.4 1.4-2.8 1.4-2.9 0 0-2.8-1.1-2.8-4.2zM14 4.9c.7-.9 1.2-2.1 1.1-3.3-1 0-2.3.7-3 1.6-.7.8-1.2 2-1.1 3.2 1.1.1 2.3-.6 3-1.5z" /></svg>
+            App Store
+          </a>
+          <a href={PLAY_STORE} className="inline-flex items-center gap-3 rounded-full bg-cta px-6 py-4 text-[16px] font-bold text-white shadow-[0_10px_30px_rgba(37,30,23,0.25)] transition hover:bg-ctah">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M4 2.8v18.4c0 .5.5.8.9.6L20.5 12 4.9 2.2c-.4-.2-.9.1-.9.6zm11.3 7.3L6.2 4.9l9.1 5.2zm0 3.8l-9.1 5.2 9.1-5.2zm1.7-1.9l2.9-1.6-2.9-1.7-1.9 1.7 1.9 1.6zM15.3 13.9L6.2 19.1l9.1-5.2z" /></svg>
+            Google Play
+          </a>
+        </div>
+        <p className="mt-2 text-[12px] text-faint">Free · iPhone &amp; Android · English, Português, Español</p>
       </header>
 
       <section className="mt-12 flex flex-col gap-10">
@@ -91,7 +95,10 @@ export default function Leo() {
       </section>
 
       <div className="mt-12 text-center">
-        <a href={APP_STORE} className="inline-flex items-center gap-3 rounded-full bg-cta px-6 py-4 text-[16px] font-bold text-white shadow-[0_10px_30px_rgba(37,30,23,0.25)] transition hover:bg-ctah">Download on the App Store</a>
+        <div className="flex flex-wrap items-center justify-center gap-3">
+          <a href={APP_STORE} className="inline-flex items-center gap-3 rounded-full bg-cta px-6 py-4 text-[16px] font-bold text-white shadow-[0_10px_30px_rgba(37,30,23,0.25)] transition hover:bg-ctah">App Store</a>
+          <a href={PLAY_STORE} className="inline-flex items-center gap-3 rounded-full bg-cta px-6 py-4 text-[16px] font-bold text-white shadow-[0_10px_30px_rgba(37,30,23,0.25)] transition hover:bg-ctah">Google Play</a>
+        </div>
         <p className="mt-2 text-[12px] text-faint">Free · No account needed · English, Português, Español</p>
       </div>
 

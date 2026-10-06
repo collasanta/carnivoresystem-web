@@ -13,9 +13,9 @@ const MODULES = [
   },
   {
     name: "LeoDiet — Carnivore Diet Tracker",
-    detail: "iOS · salt, water & clean days",
+    detail: "iOS & Android · salt, water & clean days",
     href: "https://leodiet.com",
-    chip: "App Store",
+    chip: "App Store · Google Play",
   },
   {
     name: "Diet Analyzer",
