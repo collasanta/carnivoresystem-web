@@ -5,7 +5,7 @@ import { StoreButtons } from "./store-buttons";
 
 // Landing BR dos anúncios do Meta (leodiet.com/lp-pt). Conversão = clique numa loja (evento Lead).
 // Pixel do Meta: vazio = página sem pixel (só Vercel Analytics).
-const META_PIXEL_ID = "";
+const META_PIXEL_ID = "1370037514985006"; // dataset "leodiet" (criado 2026-10-20)
 
 export const metadata: Metadata = {
   title: "LeoDiet — Dieta carnívora do jeito certo",
