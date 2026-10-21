@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import { track } from "@vercel/analytics";
 
 // Links de campanha: Meta Ads Brasil (App Analytics › Campaigns `ct`, Play Console › Aquisição `utm_source`)
@@ -12,10 +13,52 @@ declare global {
   }
 }
 
+// PostHog do Leo (chave pública do projeto): guarda cada visita e cada clique com data, botão e origem do anúncio.
+const POSTHOG = { key: "phc_zjKJutnPszYRBzo7gHxkeskro74gQ5cNC7Bc5f9hvFLk", host: "https://us.i.posthog.com" };
+
+function visitorId() {
+  try {
+    let id = localStorage.getItem("lp_vid");
+    if (!id) localStorage.setItem("lp_vid", (id = crypto.randomUUID()));
+    return id;
+  } catch {
+    return crypto.randomUUID();
+  }
+}
+
+function capture(event: string, extra: Record<string, string> = {}) {
+  const q = new URLSearchParams(location.search);
+  const ua = navigator.userAgent;
+  const properties = {
+    ...extra,
+    page: "lp-pt",
+    platform: /iPhone|iPad|iPod/.test(ua) ? "ios" : /Android/.test(ua) ? "android" : "desktop",
+    utm_source: q.get("utm_source") ?? undefined,
+    utm_campaign: q.get("utm_campaign") ?? undefined,
+    utm_content: q.get("utm_content") ?? undefined,
+    from_meta_ad: q.has("fbclid"),
+    $current_url: location.href,
+    $process_person_profile: false,
+  };
+  const body = JSON.stringify({ api_key: POSTHOG.key, event, distinct_id: visitorId(), properties });
+  try {
+    if (!navigator.sendBeacon?.(`${POSTHOG.host}/capture/`, body)) throw new Error();
+  } catch {
+    fetch(`${POSTHOG.host}/capture/`, { method: "POST", body, keepalive: true }).catch(() => {});
+  }
+}
+
+/** Registra a visita (uma vez por carregamento), pra ter a taxa de clique por dia. */
+export function LpView() {
+  useEffect(() => capture("lp_view"), []);
+  return null;
+}
+
 /** Clique numa loja = conversão (evento Lead do pixel). Espera o pixel sair antes de abrir a loja. */
 function go(e: React.MouseEvent<HTMLAnchorElement>, store: "app_store" | "google_play") {
   const href = e.currentTarget.href;
   track("lp_pt_store_click", { store });
+  capture("lp_store_click", { store });
   if (!window.fbq) return;
   e.preventDefault();
   window.fbq("track", "Lead", { content_name: store });
