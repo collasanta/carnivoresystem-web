@@ -24,13 +24,16 @@ export const metadata: Metadata = {
 };
 
 export default async function RootLayout({ children }: LayoutProps<"/">) {
-  const host = (await headers()).get("host") ?? "";
+  const h = await headers();
+  const host = h.get("host") ?? "";
   const isLeo = host.endsWith("leodiet.com");
+  // web2app funnel (/quiz/*, flagged by middleware.ts): full-bleed, pt-BR, no site header
+  const isFunnel = h.get("x-w2a") === "1";
   return (
-    <html lang="en" className={`${jakarta.variable} h-full antialiased`}>
+    <html lang={isFunnel ? "pt-BR" : "en"} className={`${jakarta.variable} h-full antialiased`}>
       <body className="min-h-svh font-[family-name:var(--font-jakarta)] text-ink">
-        {isLeo ? null : <SiteHeader />}
-        <div className="flex flex-col items-center px-5 pt-8 pb-10">{children}</div>
+        {isLeo || isFunnel ? null : <SiteHeader />}
+        {isFunnel ? children : <div className="flex flex-col items-center px-5 pt-8 pb-10">{children}</div>}
         <Analytics />
       </body>
     </html>
