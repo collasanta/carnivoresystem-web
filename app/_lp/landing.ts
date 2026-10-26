@@ -3,6 +3,10 @@ import { ICON_DATA_URI } from "./icon-data";
 /*
  * Base compartilhada das landings de anúncio do Meta (leodiet.com/lp-pt, /lp-au, ...). Conversão = clique numa loja (evento Lead).
  *
+ * O botão do Google Play leva install referrer com fbc (`fb.1.<ms do clique>.<fbclid>`), fbp, utm_campaign/content, lp e lpv
+ * (id do visitante no PostHog). O app Android lê com getInstallReferrerAsync() e manda eventos pela Conversions API
+ * (supabase/functions/meta-capi no repo leo), então a Meta otimiza por evento dentro do app.
+ *
  * Cada landing é um route handler estático (`dynamic = "force-static"`, prerenderizado no build, cache na edge da Vercel)
  * que devolve o HTML gerado aqui, fora do layout raiz do site: sem React, sem webfont, sem CSS externo. O topo (ícone,
  * título, linha curta e os dois botões) pinta já no primeiro pacote de HTML, e o clique é rastreado por um script inline
@@ -69,13 +73,19 @@ p.from_meta_ad=q.has('fbclid');p.$current_url=location.href;p.$process_person_pr
 var b=JSON.stringify({api_key:K,event:ev,distinct_id:vid(),properties:p});
 try{if(!navigator.sendBeacon||!navigator.sendBeacon(H,b))throw 0}catch(e){try{fetch(H,{method:'POST',body:b,keepalive:true}).catch(function(){})}catch(e2){}}}
 try{cap('lp_view',{})}catch(e){}
+function ck(n){var m=d.cookie.match(new RegExp('(?:^|; )'+n+'=([^;]*)'));return m?decodeURIComponent(m[1]):''}
+function play(h){try{var u=new URL(h),q=new URLSearchParams(location.search),r=new URLSearchParams(u.searchParams.get('referrer')||''),f=q.get('fbclid'),c=ck('_fbc'),b=ck('_fbp');
+if(f&&(!c||c.split('.').slice(3).join('.')!==f))c='fb.1.'+Date.now()+'.'+f;
+['utm_campaign','utm_content'].forEach(function(n){var v=q.get(n);if(v)r.set(n,v)});
+if(c)r.set('fbc',c);if(b)r.set('fbp',b);r.set('lp','${page}');r.set('lpv',vid());
+u.searchParams.set('referrer',r.toString());return u.toString()}catch(e){return h}}
 var busy=0;
 w.addEventListener('pageshow',function(){busy=0});
 d.addEventListener('click',function(e){
 var t=e.target,a=t&&t.closest?t.closest('a[data-store]'):null;
 if(!a||e.button||e.metaKey||e.ctrlKey||e.shiftKey||e.altKey)return;
 e.preventDefault();if(busy)return;busy=1;
-var s=a.getAttribute('data-store'),href=a.href;
+var s=a.getAttribute('data-store'),href=s==='google_play'?play(a.href):a.href;
 try{w.va('event',{name:'${vaEvent}',data:{store:s}})}catch(x){}
 try{cap('lp_store_click',{store:s})}catch(x){}
 try{w.fbq('track','Lead',{content_name:s})}catch(x){}
