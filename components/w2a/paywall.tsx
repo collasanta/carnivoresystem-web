@@ -3,6 +3,8 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
+import { formatCpf, isValidCpf } from "@/lib/web2app/cpf";
+import type { ProviderInfo } from "@/lib/web2app/payments";
 import { PLANS, brl, perMonth, planById, type PlanId } from "@/lib/web2app/plans";
 import { fmtDate, fmtKg, project } from "@/lib/web2app/projection";
 import { track } from "@/lib/web2app/pixel";
@@ -12,7 +14,8 @@ import { Card, Cta, Disclaimer, Page, Title, TopBar } from "./ui";
 /**
  * /quiz/oferta — web paywall. Prices come from lib/web2app/plans.ts. "Continuar" creates the purchase on the server
  * (POST /api/w2a/checkout), which asks the active payment provider for a checkout and returns where to send the
- * browser (hosted checkout, Pix, or the mock page while no gateway is chosen).
+ * browser (hosted checkout, Pix, or the mock page in local dev). With Asaas the buyer picks Pix or card and types the
+ * CPF (Asaas requires it); the CPF goes to the gateway only and stays in sessionStorage to prefill a retry.
  */
 const INCLUDED = [
   "Sal e água calculados para o seu corpo, com lembretes",
@@ -30,13 +33,40 @@ const FAQ = [
   { q: "Funciona em mais de um celular?", a: "Sim, o código pode ser ativado em até 3 aparelhos." },
 ];
 
-export function Paywall() {
+type CheckoutAction =
+  | { kind: "redirect"; url: string; returnsToSite?: boolean }
+  | { kind: "pix"; qrCodeBase64?: string; copyPaste: string; expiresAt?: string };
+
+const ss = {
+  get: (k: string) => {
+    try {
+      return sessionStorage.getItem(k);
+    } catch {
+      return null;
+    }
+  },
+  set: (k: string, v: string) => {
+    try {
+      sessionStorage.setItem(k, v);
+    } catch {
+      /* private mode */
+    }
+  },
+};
+export const checkoutKey = (pid: string) => `w2a_checkout_${pid}`;
+
+export function Paywall({ provider }: { provider: ProviderInfo }) {
   const router = useRouter();
   const { state, ready, update } = useFunnel();
   const [picked, setSelected] = useState<PlanId | null>(null);
   const selected: PlanId = picked ?? (state.plan && planById(state.plan) ? state.plan : (PLANS.find((p) => p.featured)?.id ?? PLANS[0].id));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const methods = provider?.methods ?? [];
+  // lazy initializers: nothing below is rendered before `ready`, so server and first client render still match
+  const [method, setMethod] = useState<"pix" | "card">(() => (typeof window !== "undefined" && new URLSearchParams(window.location.search).get("m") === "card" ? "card" : "pix"));
+  const [cpf, setCpf] = useState(() => formatCpf(ss.get("w2a_cpf") ?? ""));
+  const [cpfError, setCpfError] = useState(false);
   const proj = useMemo(() => (ready ? project(state.answers) : null), [ready, state.answers]);
 
   useEffect(() => {
@@ -53,6 +83,12 @@ export function Paywall() {
   const plan = planById(selected)!;
   const checkout = async () => {
     if (busy) return;
+    if (provider?.needsCpf && !isValidCpf(cpf)) {
+      setCpfError(true);
+      setError("Confira o seu CPF.");
+      document.getElementById("w2a-cpf")?.focus();
+      return;
+    }
     setBusy(true);
     setError(null);
     update({ plan: selected });
@@ -61,19 +97,43 @@ export function Paywall() {
       const res = await fetch("/api/w2a/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ leadId: state.leadId, plan: selected, ...metaCookies(state.attribution) }),
+        body: JSON.stringify({
+          leadId: state.leadId,
+          plan: selected,
+          ...(methods.length ? { method } : {}),
+          ...(provider?.needsCpf ? { cpf } : {}),
+          // the previous unpaid attempt (expired Pix, refused card) is canceled at the gateway
+          ...(state.purchase ? { replace: { pid: state.purchase.id, t: state.purchase.token } } : {}),
+          ...metaCookies(state.attribution),
+        }),
       });
-      const j = (await res.json()) as { purchaseId?: string; token?: string; action?: { kind: string; url?: string }; error?: string };
+      const j = (await res.json()) as { purchaseId?: string; token?: string; action?: CheckoutAction; error?: string };
       if (!res.ok || !j.purchaseId || !j.token || !j.action) throw new Error(j.error ?? "server");
+      if (provider?.needsCpf) ss.set("w2a_cpf", cpf);
       update({ purchase: { id: j.purchaseId, token: j.token, plan: selected } });
-      if (j.action.kind === "redirect" && j.action.url) {
-        window.location.assign(j.action.url);
+      const page = `/quiz/pagamento?pid=${j.purchaseId}&t=${j.token}`;
+      if (j.action.kind === "pix") {
+        ss.set(checkoutKey(j.purchaseId), JSON.stringify(j.action));
+        router.push(`${page}&m=pix`);
         return;
       }
-      // TODO(gateway): Pix QR (action.kind === "pix") — render it on /quiz/pagamento and poll /api/w2a/purchase.
-      router.push(`/quiz/pagamento?pid=${j.purchaseId}&t=${j.token}`);
+      if (j.action.returnsToSite === false) {
+        // the gateway won't bring the buyer back: open its checkout in a new tab from our page, which keeps polling
+        ss.set(checkoutKey(j.purchaseId), JSON.stringify(j.action));
+        router.push(`${page}&m=card`);
+        return;
+      }
+      window.location.assign(j.action.url);
     } catch (e) {
-      setError(String(e).includes("payments_unavailable") ? "Pagamento indisponível no momento. Tente de novo mais tarde." : "Não conseguimos iniciar o pagamento. Tente de novo.");
+      const m = String(e);
+      setError(
+        m.includes("payments_unavailable")
+          ? "Pagamento indisponível no momento. Tente de novo mais tarde."
+          : m.includes("cpf")
+            ? "CPF não aceito. Confira os números e tente de novo."
+            : "Não conseguimos iniciar o pagamento. Tente de novo.",
+      );
+      if (m.includes("cpf")) setCpfError(true);
       setBusy(false);
     }
   };
@@ -123,7 +183,58 @@ export function Paywall() {
         })}
       </div>
 
-      <p className="mt-3 text-center text-[12px] text-mute">Pagamento único · sem renovação automática · Pix ou cartão</p>
+      {methods.length > 1 && (
+        <div className="mt-5">
+          <div className="mb-2 text-[13px] font-bold">Forma de pagamento</div>
+          <div role="radiogroup" aria-label="Forma de pagamento" className="grid grid-cols-2 gap-2">
+            {methods.map((m) => {
+              const on = m === method;
+              return (
+                <button
+                  key={m}
+                  type="button"
+                  role="radio"
+                  aria-checked={on}
+                  onClick={() => setMethod(m)}
+                  className={cn(
+                    "flex h-14 flex-col items-center justify-center rounded-2xl border bg-card text-[15px] font-bold transition-[border-color,box-shadow]",
+                    on ? "border-cta shadow-[0_0_0_1.5px_var(--color-cta)]" : "border-line hover:border-linex",
+                  )}
+                >
+                  {m === "pix" ? "Pix" : "Cartão de crédito"}
+                  <span className="text-[11px] font-normal text-mute">{m === "pix" ? "aprovação na hora" : "ambiente seguro Asaas"}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+      {provider?.needsCpf && (
+        <label className="mt-4 block">
+          <span className="mb-1.5 block text-[13px] font-bold">CPF do pagador</span>
+          <input
+            id="w2a-cpf"
+            inputMode="numeric"
+            autoComplete="off"
+            placeholder="000.000.000-00"
+            value={cpf}
+            onChange={(e) => {
+              setCpf(formatCpf(e.target.value));
+              setCpfError(false);
+            }}
+            onBlur={() => cpf && setCpfError(!isValidCpf(cpf))}
+            aria-invalid={cpfError}
+            className={cn("h-12 w-full rounded-xl border bg-card px-3 text-[16px] tracking-wide outline-none focus:border-cta", cpfError ? "border-bad" : "border-linex")}
+          />
+          <span className={cn("mt-1 block text-[11.5px]", cpfError ? "text-bad" : "text-mute")}>
+            {cpfError ? "CPF inválido. Confira os números." : "Exigido pelo banco para emitir o Pix ou a cobrança no cartão. Usado só no pagamento."}
+          </span>
+        </label>
+      )}
+
+      <p className="mt-3 text-center text-[12px] text-mute">
+        Pagamento único · sem renovação automática · {methods.length ? "Pix ou cartão" : "pagamento de teste"}
+      </p>
 
       <Card className="mt-6">
         <div className="text-[12px] font-semibold tracking-[0.12em] text-mute uppercase">O que está incluído</div>
@@ -173,7 +284,7 @@ export function Paywall() {
       </p>
       <Disclaimer className="mt-3" />
       <Cta onClick={checkout} busy={busy}>
-        Continuar · {brl(plan.priceCents)}
+        {provider?.needsCpf ? (method === "pix" ? "Gerar Pix" : "Pagar com cartão") : "Continuar"} · {brl(plan.priceCents)}
       </Cta>
     </Page>
   );

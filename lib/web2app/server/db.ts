@@ -45,3 +45,12 @@ export async function insertLog(table: string, row: Record<string, unknown>): Pr
 }
 
 export const eq = (col: string, v: string) => `${col}=eq.${encodeURIComponent(v)}`;
+
+export async function select<T>(table: string, query: string): Promise<T[]> {
+  return call<T[]>(`${table}?${query}`);
+}
+
+/** PATCH without touching updated_at (for tables that don't have it: profiles, web_redemptions). */
+export async function patch<T>(table: string, filter: string, row: Record<string, unknown>): Promise<T[]> {
+  return call<T[]>(`${table}?${filter}`, { method: "PATCH", body: JSON.stringify(row), prefer: "return=representation" });
+}

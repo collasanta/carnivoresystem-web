@@ -8,7 +8,19 @@ import { once, track } from "@/lib/web2app/pixel";
 import { useFunnel } from "@/lib/web2app/state";
 import { Card, Cta, Page, StoreButtons, Title, TopBar } from "./ui";
 
-type PublicPurchase = { id: string; status: string; plan: string; amountCents: number; currency: string; code: string | null; test: boolean; email: string; emailSent: boolean };
+type PublicPurchase = {
+  id: string;
+  status: string;
+  plan: string;
+  amountCents: number;
+  currency: string;
+  code: string | null;
+  test: boolean;
+  email: string;
+  emailSent: boolean;
+  provider?: string;
+  reason?: "pix_expired" | "card_refused" | "canceled" | null;
+};
 
 /**
  * /quiz/sucesso?pid=…&t=… — polls the purchase until it is paid, then: Meta Purchase (browser, eventID w2a_<id>, the
@@ -24,6 +36,7 @@ export function Success() {
   const [p, setP] = useState<PublicPurchase | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const tries = useRef(0);
+  const [slow, setSlow] = useState(false);
 
   useEffect(() => {
     if (!ready) return;
@@ -32,12 +45,15 @@ export function Success() {
     let timer: ReturnType<typeof setTimeout>;
     const poll = async () => {
       try {
-        const res = await fetch(`/api/w2a/purchase?pid=${encodeURIComponent(pid)}&t=${encodeURIComponent(t)}`, { cache: "no-store" });
+        // every 5th poll also asks the gateway (a late webhook never blocks the code)
+        const check = tries.current % 5 === 4 ? "&check=1" : "";
+        const res = await fetch(`/api/w2a/purchase?pid=${encodeURIComponent(pid)}&t=${encodeURIComponent(t)}${check}`, { cache: "no-store" });
         const j = (await res.json()) as { purchase?: PublicPurchase; error?: string };
         if (!res.ok || !j.purchase) throw new Error(j.error ?? "server");
         if (stop) return;
         setP(j.purchase);
         if (j.purchase.status === "pending" && tries.current++ < 90) timer = setTimeout(poll, 2000);
+        else if (j.purchase.status === "pending") setSlow(true);
       } catch (e) {
         if (!stop) setErr(String(e));
       }
@@ -79,7 +95,15 @@ export function Success() {
       <Page>
         <TopBar />
         <div className="mx-auto mt-16 size-12 animate-spin rounded-full border-4 border-line border-t-walnut" aria-hidden="true" />
-        <Title sub="Isso leva alguns segundos. No Pix, assim que o banco confirmar.">Confirmando o seu pagamento…</Title>
+        <Title
+          sub={
+            slow
+              ? "Ainda não recebemos a confirmação. Se você já pagou, o código chega no seu e-mail assim que o pagamento for aprovado (no cartão, a análise pode levar alguns minutos)."
+              : "Isso leva alguns segundos. No cartão, a análise do banco pode levar alguns minutos."
+          }
+        >
+          {slow ? "Pagamento em análise" : "Confirmando o seu pagamento…"}
+        </Title>
       </Page>
     );
 
@@ -88,10 +112,20 @@ export function Success() {
       <Page>
         <TopBar />
         <div className="mx-auto mt-10 flex size-16 items-center justify-center rounded-full bg-tint text-[30px]" aria-hidden="true">⚠️</div>
-        <Title sub="Nenhum valor foi cobrado. Você pode tentar de novo com outra forma de pagamento.">
-          {p.status === "refunded" ? "Essa compra foi reembolsada" : "O pagamento não foi aprovado"}
+        <Title
+          sub={
+            p.status === "refunded"
+              ? "O acesso ligado a ela foi encerrado. Dúvidas: leo@leodiet.com."
+              : p.reason === "pix_expired"
+                ? "O prazo para pagar este Pix acabou. Gere um novo para continuar."
+                : "Nenhum valor foi cobrado. Tente outro cartão ou pague com Pix, que é aprovado na hora."
+          }
+        >
+          {p.status === "refunded" ? "Essa compra foi reembolsada" : p.reason === "pix_expired" ? "Este Pix expirou" : p.reason === "canceled" ? "Este pagamento foi cancelado" : "O pagamento não foi aprovado"}
         </Title>
-        <Cta onClick={() => router.push("/quiz/oferta")}>Tentar de novo</Cta>
+        <Cta onClick={() => router.push(p.reason === "pix_expired" || p.reason === "card_refused" ? "/quiz/oferta?m=pix" : "/quiz/oferta")}>
+          {p.reason === "pix_expired" ? "Gerar novo Pix" : p.reason === "card_refused" ? "Pagar com Pix" : "Tentar de novo"}
+        </Cta>
       </Page>
     );
 

@@ -7,9 +7,9 @@ import { useFunnel } from "@/lib/web2app/state";
 import { Card, Page, Title, TopBar } from "./ui";
 
 /**
- * /quiz/pagamento — stand-in for the gateway's checkout while W2A_PAYMENT_PROVIDER=mock. No card fields, no money:
- * two buttons that play the gateway's answer (POST /api/w2a/mock-pay). Real gateways replace this page with their
- * hosted checkout (redirect) or a Pix QR rendered here (TODO(gateway), see docs/web2app.md).
+ * /quiz/pagamento (no `m`) — stand-in for the gateway's checkout while PAYMENT_PROVIDER=mock (local dev only). No card
+ * fields, no money: two buttons that play the gateway's answer (POST /api/w2a/mock-pay). The real gateway (Asaas) uses
+ * ./checkout.tsx (/quiz/pagamento?m=pix|card).
  */
 export function MockCheckout() {
   const q = useSearchParams();
@@ -46,7 +46,7 @@ export function MockCheckout() {
     <Page>
       <TopBar onBack={() => router.push("/quiz/oferta")} />
       <div className="mt-4 rounded-2xl border border-warn/50 bg-warn/10 px-4 py-3 text-center text-[12.5px] leading-relaxed text-ink">
-        <b>Ambiente de teste.</b> Nenhum gateway de pagamento está ligado ainda. Esta tela simula a resposta do gateway; nenhum valor é cobrado.
+        <b>Ambiente de teste local.</b> Pagamento simulado (PAYMENT_PROVIDER=mock); nenhum valor é cobrado.
       </div>
       <Title>Pagamento</Title>
       <Card>

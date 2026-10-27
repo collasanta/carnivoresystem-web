@@ -1,6 +1,6 @@
 /**
  * Payment provider interface for the web paywall. One implementation per gateway; `getProvider()` in ./index.ts picks
- * it from W2A_PAYMENT_PROVIDER. The rest of the funnel never talks to a gateway directly:
+ * it from PAYMENT_PROVIDER. The rest of the funnel never talks to a gateway directly:
  *
  *   POST /api/w2a/checkout      → creates web_purchases (status 'pending') → provider.createCheckout()
  *                                 → the browser follows the returned action (redirect / Pix QR / mock page)
@@ -8,12 +8,15 @@
  *   GET  /api/w2a/purchase      → the success page polls; when still pending, provider.fetchStatus() if implemented
  *
  * fulfillPurchase() (../server/fulfill.ts) is idempotent: it is safe to call from the webhook AND from a status poll.
- * TODO(gateway): implement this interface for the chosen gateway (Mercado Pago / Pagar.me / Asaas / EBANX / Stripe),
- * register it in ./index.ts and set W2A_PAYMENT_PROVIDER. Recipe in docs/web2app.md › "Plugging in a real gateway".
+ * Implementations: ./mock.ts (local dev only) and ./asaas.ts (Pix inline + card on the Asaas hosted invoice).
+ * Recipe for another gateway in docs/web2app.md › "Plugging in a real gateway".
  */
 import type { Plan } from "../plans";
 
 export type PurchaseStatus = "pending" | "paid" | "failed" | "refunded" | "canceled";
+
+/** How the buyer pays. The mock ignores it. */
+export type PayMethod = "pix" | "card";
 
 export type CheckoutInput = {
   purchaseId: string;
@@ -29,11 +32,24 @@ export type CheckoutInput = {
   webhookUrl: string;
   clientIp?: string;
   userAgent?: string;
+  /** chosen on the paywall (providers that list `methods`) */
+  method?: PayMethod;
+  /** payer CPF, digits only, already validated (providers with `needsCpf`). Never stored by us. */
+  cpf?: string;
 };
 
 export type CheckoutAction =
   /** send the browser to a hosted checkout (Mercado Pago Checkout Pro, Stripe Checkout, Pagar.me link, Asaas invoice…) */
-  | { kind: "redirect"; url: string; providerRef?: string }
+  | {
+      kind: "redirect";
+      url: string;
+      providerRef?: string;
+      /**
+       * false = the gateway won't send the buyer back to our success URL (Asaas without a registered domain): the
+       * browser opens the checkout in a new tab from /quiz/pagamento and keeps polling there.
+       */
+      returnsToSite?: boolean;
+    }
   /** show a Pix QR code on our page and poll the purchase status */
   | { kind: "pix"; qrCodeBase64?: string; copyPaste: string; expiresAt?: string; providerRef?: string };
 
@@ -51,7 +67,11 @@ export interface PaymentProvider {
   /** stored in web_purchases.provider and used in the webhook path */
   id: string;
   /** true = sandbox / fake money: the purchase is flagged `test` (24 h redemption, no real Meta Purchase) */
-  test: boolean;
+  readonly test: boolean;
+  /** payment methods the paywall offers (empty / missing = no picker) */
+  methods?: PayMethod[];
+  /** the paywall must collect a CPF */
+  needsCpf?: boolean;
   createCheckout(input: CheckoutInput): Promise<CheckoutAction>;
   /**
    * Verify the notification (signature / secret / re-fetch from the gateway API — never trust the body alone) and
@@ -60,4 +80,6 @@ export interface PaymentProvider {
   parseWebhook(req: Request): Promise<WebhookResult | null>;
   /** Optional: ask the gateway for the current status (for Pix polling when a webhook is late). */
   fetchStatus?(providerRef: string): Promise<WebhookResult | null>;
+  /** Optional: cancel an unpaid charge (a new Pix replaces an expired one, so the old QR can't be paid too). */
+  cancel?(providerRef: string): Promise<void>;
 }

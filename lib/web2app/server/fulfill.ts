@@ -1,5 +1,6 @@
 import { randomBytes, randomInt } from "node:crypto";
 import { eq, selectOne, update } from "./db";
+import { revokePurchase } from "./revoke";
 import { sendPurchase } from "./capi";
 import { sendCodeEmail } from "./email";
 import type { PurchaseStatus } from "../payments/types";
@@ -14,6 +15,7 @@ export type PurchaseRow = {
   currency: string;
   provider: string;
   provider_ref: string | null;
+  provider_status: string | null;
   status: PurchaseStatus;
   test: boolean;
   access_token: string;
@@ -51,7 +53,9 @@ export const newAccessToken = () => randomBytes(24).toString("base64url");
 export async function fulfillPurchase(purchaseId: string, opts: { providerRef?: string; providerStatus?: string; origin: string }): Promise<PurchaseRow | null> {
   let p = await selectOne<PurchaseRow>("web_purchases", eq("id", purchaseId));
   if (!p) return null;
-  if (p.status === "refunded" || p.status === "canceled") return p;
+  // money that really arrived wins over "expired"/"failed" (a Pix paid after our page gave up, a card retried on the
+  // invoice); only a refund is final
+  if (p.status === "refunded") return p;
 
   if (p.status !== "paid") {
     const id = p.id;
@@ -99,18 +103,37 @@ export async function fulfillPurchase(purchaseId: string, opts: { providerRef?: 
   return (await selectOne<PurchaseRow>("web_purchases", eq("id", purchaseId))) ?? p;
 }
 
-/** Non-paid outcomes from a webhook (failed, refunded, canceled). A refund blocks future redemptions. */
+/**
+ * Non-paid outcomes from a webhook / status check. Conditional, so retries and out-of-order events are harmless:
+ *  - failed / canceled only replace `pending` (a late PAYMENT_OVERDUE never downgrades a paid purchase);
+ *  - refunded replaces pending / paid / failed / canceled once; on the paid → refunded transition, Pro is revoked for
+ *    every user who redeemed the code (./revoke.ts). The code can't be redeemed again (redeem_web_code checks status).
+ */
 export async function markPurchase(purchaseId: string, status: PurchaseStatus, providerStatus?: string): Promise<void> {
-  await update("web_purchases", eq("id", purchaseId), {
+  if (status === "paid" || status === "pending") return;
+  const from = status === "refunded" ? "pending,paid,failed,canceled" : "pending";
+  const rows = await update<PurchaseRow>("web_purchases", `${eq("id", purchaseId)}&status=in.(${from})`, {
     status,
     ...(providerStatus ? { provider_status: providerStatus } : {}),
     ...(status === "refunded" ? { refunded_at: new Date().toISOString() } : {}),
   });
-  // TODO(gateway): on refund, also revoke in RevenueCat for every web_redemptions.user_id
-  // (POST /v2/projects/<id>/customers/<user>/actions/revoke_granted_entitlement) and clear profiles.pro_until.
+  if (status === "refunded" && rows.length) {
+    const report = await revokePurchase(purchaseId);
+    if (report.length) console.info("[w2a/refund]", purchaseId, JSON.stringify(report));
+  } else if (!rows.length && providerStatus) {
+    // keep the raw status for debugging even when the transition was refused
+    await update("web_purchases", `${eq("id", purchaseId)}&status=neq.${status}`, { provider_status: providerStatus }).catch(() => {});
+  }
+}
+
+/** Why a purchase isn't paid, for the buyer's page. */
+export function failureReason(p: Pick<PurchaseRow, "status" | "provider_status">): "pix_expired" | "card_refused" | "canceled" | null {
+  if (p.status === "canceled") return p.provider_status === "OVERDUE" ? "pix_expired" : "canceled";
+  if (p.status === "failed") return "card_refused";
+  return null;
 }
 
 /** Public view of a purchase for the browser that owns it (access token checked by the caller). */
 export function publicPurchase(p: PurchaseRow) {
-  return { id: p.id, status: p.status, plan: p.plan, amountCents: p.amount_cents, currency: p.currency, code: p.status === "paid" ? p.code : null, test: p.test, email: p.email, emailSent: !!p.email_sent_at };
+  return { id: p.id, status: p.status, plan: p.plan, amountCents: p.amount_cents, currency: p.currency, code: p.status === "paid" ? p.code : null, test: p.test, email: p.email, emailSent: !!p.email_sent_at, provider: p.provider, reason: failureReason(p) };
 }
