@@ -133,12 +133,13 @@ export function PlanScreen() {
 function focusPoints(a: Answers): string[] {
   const out: string[] = [];
   const b = a.blockers ?? [];
-  if (b.includes("symptoms") || a.tenure === "never" || a.tenure === "new") out.push("Primeira semana sem dor de cabeça e câimbra: sal e água no ponto, com lembretes.");
+  if (b.includes("symptoms") || (a.symptoms ?? []).some((x) => ["headache", "cramps", "dizziness"].includes(x)) || a.tenure === "never" || a.tenure === "new") out.push("Primeira semana sem dor de cabeça e câimbra: sal e água no ponto, com lembretes.");
   if (b.includes("sweets") || a.cravings === "daily") out.push("Vontade de doce: você registra e vê a sequência de dias limpos crescer.");
   if (b.includes("weekends")) out.push("Fins de semana: um toque honesto quando sair da dieta, sem culpa e sem perder o histórico.");
   if (b.includes("consistency") || b.includes("no-results")) out.push("Constância: o calendário de dias limpos mostra o seu progresso real, dia a dia.");
   if (b.includes("what-to-eat")) out.push("Simplicidade: carne, ovos, manteiga e sal. Sem contar caloria, sem cardápio complicado.");
-  if (a.energy === "afternoon" || a.energy === "low") out.push("Energia: acompanhe humor e sintomas e veja o que muda quando o sal está certo.");
+  const sy = a.symptoms ?? [];
+  if (sy.includes("fatigue") || sy.includes("brain-fog") || a.energy === "afternoon" || a.energy === "low") out.push("Energia: acompanhe humor e sintomas e veja o que muda quando o sal está certo.");
   if (out.length < 3) out.push("Peso: uma pesagem por dia em dois segundos e a curva do mês.");
   return out.slice(0, 4);
 }

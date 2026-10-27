@@ -9,7 +9,7 @@ Status (2026-10-27): built on branch `web2app` (this repo) + `web2app-redeem` (r
 
 ```mermaid
 flowchart TD
-  A[Meta ad<br/>?fbclid&utm_*] --> Q[/quiz<br/>25 steps, localStorage leo_w2a/]
+  A[Meta ad<br/>?fbclid&utm_*] --> Q[/quiz<br/>26 steps, QUIZ_VERSION pt-v2, localStorage leo_w2a/]
   Q -->|ViewContent, QuizQuarter/Half/ThreeQuarters/Complete| P[/quiz/plano<br/>projection chart + daily targets + summary/]
   P --> E[e-mail step]
   E -->|POST /api/w2a/lead → web_leads<br/>Lead pixel| O[/quiz/oferta<br/>web paywall, plans.ts/]
@@ -21,9 +21,12 @@ flowchart TD
   F --> S[/quiz/sucesso<br/>polls /api/w2a/purchase<br/>Purchase pixel same event_id/]
   S -->|Google Play + referrer w2a_code| AA[Android app: auto-redeem on first launch]
   S -->|App Store| AI[iOS app: deep link leo://redeem?code= or Paywall › Já comprei no site]
+  S -->|any store| AE[app welcome › Já tenho conta / já comprei no site<br/>e-mail OTP login → claim by verified e-mail]
   S -->|e-mail link /quiz/ativar?c=| S
-  AA --> R[edge function w2a-redeem<br/>RPC redeem_web_code → profiles.pro_until<br/>RevenueCat grant_entitlement pro]
+  AA --> R[edge function w2a-redeem<br/>RPC redeem_web_code → profiles.pro_until<br/>RevenueCat grant_entitlement pro<br/>returns the lead's quiz answers]
   AI --> R
+  AE --> R
+  R --> PR[app: answers → intake + profile, onboarded<br/>or asks only the missing questions → Today]
 ```
 
 Why the entitlement is granted at **redemption**, not at payment: the RevenueCat app user id is the app's Supabase user
@@ -73,9 +76,11 @@ purchase to whatever user the app has at that moment (up to 3 users per code →
 |---|---|
 | `supabase/migrations/20261027000000_web2app.sql` | `web_leads`, `web_purchases`, `web_redemptions` (RLS on, no policies: service role only), RPC `redeem_web_code`. **Already applied to prod.** |
 | `supabase/functions/w2a-redeem/index.ts` | redeem endpoint (user JWT). **Already deployed.** Grants `profiles.pro_until` + RevenueCat entitlement `pro` (API v2, promotional grant, `expires_at` = plan end; lifetime = 2100-01-01). |
-| `src/lib/webRedeem.ts` | app client: normalize, redeem, pending code from the install referrer. |
-| `src/app/redeem.tsx` | "Ativar compra do site" modal (`leo://redeem?code=`; paywall footer "Já comprei no site"). |
-| `src/app/_layout.tsx` | `/redeem` allowed through onboarding/paywall gates; Android auto-redeem after reading the referrer. |
+| `src/lib/webRedeem.ts` | app client: normalize, redeem, e-mail claim (`claimWebPurchases`), pending code from the install referrer. |
+| `src/lib/webProfile.ts` | quiz answers → `settings.intake` + `settings.profile` (mapping below); `applyWebAnswers` never touches an onboarded install. |
+| `src/app/redeem.tsx` | "Ativar compra do site" modal (`leo://redeem?code=`; paywall footer "Já comprei no site"); success on a fresh install applies the answers. |
+| `src/app/onboarding.tsx` | welcome screen (first launch: "Começar" + "Já tenho conta / já comprei no site" → e-mail OTP → claim); `mode=complete&ask=…` asks only missing questions. |
+| `src/app/_layout.tsx` | `/redeem` allowed through onboarding/paywall gates; Android auto-redeem after reading the referrer, then applies the answers; claim safety net for signed-in non-Pro users. |
 | `src/lib/attribution.ts` | reads `w2a_code` from the Play install referrer. |
 
 ## Data
@@ -83,6 +88,32 @@ purchase to whatever user the app has at that moment (up to 3 users per code →
 - `web_leads`: e-mail, name, quiz answers (jsonb), computed plan, attribution (fbclid/fbc/fbp/utm/landing/referrer/IP/UA), `marketing_ok`.
 - `web_purchases`: plan, amount, provider + `provider_ref`, status (`pending|paid|failed|refunded|canceled`), `test`, `access_token` (lets the buyer's browser read the status), `code`, `redemptions/max_redemptions`, CAPI and e-mail bookkeeping.
 - `web_redemptions`: one row per (purchase, app user): platform, app version, `pro_until`, RevenueCat result.
+
+## App side: e-mail claim and profile from the quiz
+
+- `w2a-redeem` has two modes. `{code}`: as before. `{claim: true}`: needs a signed-in, **verified** (non-anonymous, `email_confirmed_at`) user; finds every `paid` `web_purchases` row whose e-mail matches case-insensitively, redeems each through `redeem_web_code` (same idempotency and 3-users limit), grants RevenueCat once with the longest `pro_until`. Results: `ok` (`already` when this user had redeemed), or `none | used | refunded | unverified`.
+- Both modes return `answers` + `quiz_version`: the purchase's lead, else the newest lead with the same e-mail.
+- No purchase on the e-mail: the user stays signed in, sees a friendly message and continues to the normal onboarding (a returning account that is already onboarded goes home).
+- Apple "Hide my e-mail" addresses won't match the e-mail used on the web: those buyers use the code.
+
+Mapping (web quiz id → app), source of truth `leo/src/lib/webProfile.ts`:
+
+| Web answer | App field |
+|---|---|
+| `activity` sedentary / light / moderate / active | `profile.training` none / none / moderate / heavy |
+| `salt` table / fine-sea / coarse / kosher / none | `profile.saltType` (same ids) |
+| `tenure` never / restart / new / months / veteran | `intake.tenure` not-started / not-started / under-4w / 1-6m / over-6m → `profile.tenure` new (first two) or adapted |
+| `sex` | `intake.sex` |
+| `weightKg` | `profile.weightKg` |
+| `symptoms` (app preset ids, "none" = empty) | `intake.symptoms`; cramps → `profile.crampsOften` |
+| `goal` lose / energy / cravings / digestion / health / muscle | `intake.goals` weight / energy / discipline / digestion / inflammation / energy |
+| `targetKg` vs `weightKg` (±1 kg), goal muscle | `intake.weightGoal` lose / maintain / gain |
+| `blockers` sweets / weekends / symptoms / consistency, no-results | `intake.struggles` cravings / weekends / symptoms / consistency |
+| `pastDiets` (anything but none) | `intake.triedBefore` |
+| `commit` 7 / 30 / 90 | `intake.commitDays` 7 / 30 / 30 |
+| — | `intake.source = 'web'` |
+
+`computeTargets` needs training, tenure, salt, weight, sex and symptoms. If any is missing (pt-v1 leads had no salt/symptoms, or no lead at all) the app opens `/onboarding?mode=complete&ask=…` with only those questions, then Today. Quiz ids must stay in sync with the app; bump `QUIZ_VERSION` when they change.
 
 Quiz answers are health data: they stay in Supabase and are **never** sent to Meta (CAPI gets hashed e-mail, external_id, country, fbc/fbp/IP/UA and the value only).
 
@@ -151,7 +182,7 @@ interface PaymentProvider {
 
 Local: `npm run dev` (port 3107 in the launcher), open `/quiz?fbclid=TEST&utm_source=fb`, finish the quiz, use a `@resend.dev` test address (`delivered@resend.dev`), pick a plan, "Simular pagamento aprovado". Test codes unlock the app for **24 h** only.
 Pixel test: add `?pixel=1` to the first URL and set `META_TEST_EVENT_CODE`.
-App: a dev build with the `web2app-redeem` branch, Paywall › "Já comprei no site", or `xcrun simctl openurl booted "leo://redeem?code=LEO-XXXX-XXXX"`.
+App: a dev build with the `web2app-redeem` branch, Paywall › "Já comprei no site", or `xcrun simctl openurl booted "leo://redeem?code=LEO-XXXX-XXXX"` on a fresh install (lands on Today configured). E-mail claim: fresh install → welcome › "Já tenho conta / já comprei no site" → OTP with the e-mail used on the web.
 
 ## Launch checklist
 
@@ -162,7 +193,7 @@ App: a dev build with the `web2app-redeem` branch, Paywall › "Já comprei no s
 - [ ] Resend sender `leo@leodiet.com` (domain verified) — confirm the address receives replies.
 
 **App release (required before any ad traffic)**
-- [ ] Merge `web2app-redeem` in `leo`, then a **store build** (iOS `deploy:ios` + Android) — the redeem screen touches the paywall, so per policy it is not an OTA. Until that build is live, buyers have no way to activate.
+- [ ] Merge `web2app-redeem` in `leo`, then a **store build** (iOS `deploy:ios` + Android) — the redeem screen touches the paywall and onboarding gained a welcome screen, so per policy it is not an OTA. Until that build is live, buyers have no way to activate.
 - [ ] Android auto-redeem needs the new build too (reads `w2a_code` from the referrer).
 
 **Production env**

@@ -110,7 +110,7 @@ export function fmtKg(kg: number): string {
 /**
  * Daily water + sodium starting point, the same formula as the app (leo/src/lib/protocol.ts computeTargets):
  * water 30 ml/kg (weight capped at 100 kg) + 500/1000 ml for training, 2–4 L in 250 ml steps; sodium 5 g + training
- * + 1 g in the first month, max 7.5 g. The app recalculates it at onboarding, so this is just the preview.
+ * + 1 g in the first month + 0.5 g with cramps, max 7.5 g. The app recalculates it at onboarding, so this is just the preview.
  */
 export function dailyTargets(a: Answers): { waterL: number; sodiumG: number } | null {
   if (!a.weightKg) return null;
@@ -122,5 +122,6 @@ export function dailyTargets(a: Answers): { waterL: number; sodiumG: number } | 
   if (a.activity === "moderate") sodium += 500;
   if (a.activity === "active") sodium += 1500;
   if (a.tenure === "never" || a.tenure === "new" || a.tenure === "restart") sodium += 1000;
+  if ((a.symptoms ?? []).includes("cramps")) sodium += 500;
   return { waterL: water / 1000, sodiumG: Math.min(7500, sodium) / 1000 };
 }

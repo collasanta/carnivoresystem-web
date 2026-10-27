@@ -5,7 +5,9 @@
  * (web_leads.answers) and never to Meta (pixel events carry only the step id).
  */
 
-export const QUIZ_VERSION = "pt-v1";
+/** pt-v2 (2026-10-27): + salt type, symptoms (replaced "energy"), activity aligned with the app's training levels.
+ *  The app builds its profile from these answers (leo src/lib/webProfile.ts): keep option ids in sync with it. */
+export const QUIZ_VERSION = "pt-v2";
 
 export type Answers = {
   goal?: string;
@@ -21,7 +23,12 @@ export type Answers = {
   meals?: string;
   cravings?: string;
   water?: string;
+  /** pt-v1 only (replaced by symptoms in pt-v2) */
   energy?: string;
+  /** app SYMPTOM_PRESETS ids (leo src/data/presets.ts); ["none"] = none */
+  symptoms?: string[];
+  /** app SaltType: table | fine-sea | kosher | coarse | none */
+  salt?: string;
   sleep?: string;
   activity?: string;
   event?: string;
@@ -180,13 +187,31 @@ export const STEPS: Step[] = [
     ],
   },
   {
-    kind: "single", id: "energy", key: "energy",
-    title: "Como é a sua energia ao longo do dia?",
+    kind: "single", id: "salt", key: "salt",
+    title: "Qual sal você usa em casa?",
+    sub: "Cada sal tem uma quantidade diferente de sódio na colher. O seu plano se ajusta a ele.",
     options: [
-      { id: "stable", label: "Estável" },
-      { id: "afternoon", label: "Cai depois do almoço" },
-      { id: "low", label: "Cansado(a) quase o dia todo" },
+      { id: "table", label: "Sal refinado (de cozinha)" },
+      { id: "fine-sea", label: "Sal marinho fino ou rosa do Himalaia fino" },
+      { id: "coarse", label: "Sal grosso ou em flocos" },
+      { id: "kosher", label: "Sal kosher" },
+      { id: "none", label: "Quase não uso sal" },
     ],
+  },
+  {
+    kind: "multi", id: "symptoms", key: "symptoms",
+    title: "Sentiu algum desses ultimamente?", sub: "Marque tudo o que se aplica. Muitos são sinais de pouco sal e pouca água.",
+    options: [
+      { id: "fatigue", label: "Cansaço, pouca energia" },
+      { id: "headache", label: "Dor de cabeça" },
+      { id: "cramps", label: "Câimbras" },
+      { id: "brain-fog", label: "Mente nublada, falta de foco" },
+      { id: "cravings", label: "Vontade de doce" },
+      { id: "insomnia", label: "Sono ruim" },
+      { id: "dizziness", label: "Tontura" },
+      { id: "bloating", label: "Inchaço" },
+    ],
+    none: "Nenhum desses",
   },
   {
     kind: "single", id: "sleep", key: "sleep",
@@ -203,9 +228,9 @@ export const STEPS: Step[] = [
     title: "Quanto você se movimenta?",
     options: [
       { id: "sedentary", label: "Quase nada, trabalho sentado(a)" },
-      { id: "light", label: "Caminhadas leves" },
-      { id: "moderate", label: "Treino 2 a 3 vezes por semana" },
-      { id: "active", label: "Treino 4 vezes ou mais por semana" },
+      { id: "light", label: "Caminhadas ou treino 1 a 2 vezes por semana" },
+      { id: "moderate", label: "Treino 3 a 5 vezes por semana" },
+      { id: "active", label: "Treino 6 vezes ou mais por semana" },
     ],
   },
   {
