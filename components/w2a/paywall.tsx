@@ -280,7 +280,7 @@ export function Paywall({ provider }: { provider: ProviderInfo }) {
       {error && <p className="mt-4 text-center text-[13px] text-bad">{error}</p>}
       <p className="mt-6 text-center text-[11.5px] leading-relaxed text-faint">
         Ao comprar você concorda com os <a href="/terms" target="_blank" className="underline">Termos de Uso</a> e a{" "}
-        <a href="/privacy" target="_blank" className="underline">Política de Privacidade</a>. Vendido por 33WEB SOFTWARE LTDA.
+        <a href="/privacy" target="_blank" className="underline">Política de Privacidade</a>. Pagamento processado pelo Asaas; no seu banco o recebedor aparece como Victor Henrique Collasanta.
       </p>
       <Disclaimer className="mt-3" />
       <Cta onClick={checkout} busy={busy}>

@@ -169,7 +169,7 @@ function Pix({ pid, planId, onExpire }: { pid: string; planId?: string; onExpire
   return (
     <Page>
       <TopBar onBack={() => router.push("/quiz/oferta")} />
-      <Title sub="Abra o app do seu banco, escolha Pix › Pix Copia e Cola (ou ler QR code) e confirme. Esta tela avança sozinha quando o pagamento for aprovado.">
+      <Title sub="Abra o app do seu banco, escolha Pix › Pix Copia e Cola (ou ler QR code) e confirme. O recebedor aparece como Victor Henrique Collasanta (Leo). Esta tela avança sozinha quando o pagamento for aprovado.">
         Pague com Pix
       </Title>
       <Card>
