@@ -3,7 +3,7 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import QRCode from "qrcode";
-import { useDevice } from "@/lib/web2app/device";
+import { useDevice } from "@/lib/web2app/use-device";
 import { activationUrl, appStoreUrl, deepLink, formatCode, playStoreUrl } from "@/lib/web2app/links";
 import { brl, planById } from "@/lib/web2app/plans";
 import { once, track } from "@/lib/web2app/pixel";
