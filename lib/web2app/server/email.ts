@@ -29,7 +29,7 @@ export async function sendCodeEmail(opts: { to: string; code: string; plan: stri
 <p style="font-size:15px;line-height:1.6;margin:16px 0 8px"><b>2.</b> Abra este e-mail no celular e toque em:</p>
 <div>${btn(deepLink(opts.code), "Ativar no app")}</div>
 <p style="font-size:13px;line-height:1.6;color:#93887a;margin:12px 0 0">Se o botão não abrir o app: no app, na tela de planos, toque em <b>“Já comprei no site”</b> e digite o código. Ou abra <a href="${esc(activationUrl(opts.origin, opts.code))}" style="color:#7a5a3e">esta página</a>.</p>
-${opts.test ? `<p style="font-size:12px;color:#c03a2e;margin-top:16px">Compra de TESTE (pagamento simulado): o código libera o app por 24 horas.</p>` : ""}
+${opts.test ? `<p style="font-size:12px;color:#c03a2e;margin-top:16px">Compra de TESTE: o código libera o app por 24 horas.</p>` : ""}
 <p style="font-size:12px;line-height:1.6;color:#93887a;margin-top:28px">O código funciona em até 3 aparelhos. Dúvidas: responda este e-mail ou escreva para leo@leodiet.com.<br>33WEB SOFTWARE LTDA</p>
 </div></body></html>`;
   const text = `${hello} Seu código LeoDiet Pro: ${code}\n\n1. Baixe o app: iPhone ${appStoreUrl()} | Android ${playStoreUrl(opts.code)}\n2. No app, toque em "Já comprei no site" e digite o código, ou abra ${deepLink(opts.code)} no celular.\n\nDúvidas: leo@leodiet.com`;

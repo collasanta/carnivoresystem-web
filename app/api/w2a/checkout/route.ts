@@ -1,5 +1,6 @@
 import { cpfDigits, isValidCpf } from "@/lib/web2app/cpf";
-import { planById } from "@/lib/web2app/plans";
+import { timingSafeEqual } from "node:crypto";
+import { TEST_PLAN, planById } from "@/lib/web2app/plans";
 import { getProvider, providerById } from "@/lib/web2app/payments";
 import type { PayMethod } from "@/lib/web2app/payments/types";
 import { eq, insert, selectOne, update } from "@/lib/web2app/server/db";
@@ -21,7 +22,7 @@ export async function POST(req: Request) {
     return json({ error: "json" }, 400);
   }
   const plan = planById(String(b.plan ?? ""));
-  if (!plan) return json({ error: "plan" }, 400);
+  if (!plan || (plan.id === TEST_PLAN.id && !isTestRequest(req))) return json({ error: "plan" }, 400);
   const leadId = str(b.leadId, 40);
   if (!leadId || !/^[0-9a-f-]{36}$/i.test(leadId)) return json({ error: "lead" }, 400);
   const provider = getProvider();
@@ -48,7 +49,7 @@ export async function POST(req: Request) {
       currency: plan.currency,
       provider: provider.id,
       status: "pending",
-      test: provider.test,
+      test: provider.test || plan.id === TEST_PLAN.id,
       access_token: token,
       fbc: match(b.fbc, FBC_RE) ?? lead.fbc,
       fbp: match(b.fbp, FBP_RE) ?? lead.fbp,
@@ -84,6 +85,14 @@ export async function POST(req: Request) {
     console.error("[w2a/checkout]", e);
     return json({ error: "server" }, 500);
   }
+}
+
+/** The hidden R$ 5 test plan needs the header `x-w2a-test` = ASAAS_WEBHOOK_TOKEN. */
+function isTestRequest(req: Request) {
+  const want = process.env.ASAAS_WEBHOOK_TOKEN ?? "";
+  const got = req.headers.get("x-w2a-test") ?? "";
+  const a = Buffer.from(got), b = Buffer.from(want);
+  return want.length >= 32 && a.length === b.length && timingSafeEqual(a, b);
 }
 
 /** Cancel the buyer's previous unpaid charge (same lead, token checked). Best effort: never blocks the new checkout. */

@@ -13,7 +13,7 @@
  * makes the annual the obvious pick. `appPriceCents` is shown struck through ("no app: R$ 129,90"); it must stay a real,
  * current app price, or be removed (Código de Defesa do Consumidor: a "de/por" price must be real).
  */
-export type PlanId = "quarterly" | "annual" | "lifetime";
+export type PlanId = "quarterly" | "annual" | "lifetime" | "test";
 
 export type Plan = {
   id: PlanId;
@@ -63,7 +63,22 @@ export const PLANS: Plan[] = [
   },
 ];
 
-export const planById = (id: string): Plan | undefined => PLANS.find((p) => p.id === id);
+/**
+ * R$ 5 plan for real-money end-to-end tests (Asaas' minimum charge). Never listed on the paywall; the checkout only
+ * accepts it with the header `x-w2a-test` = ASAAS_WEBHOOK_TOKEN (scripts/w2a-test-checkout.sh), and the purchase is
+ * stored as test (no Meta Purchase event, the code unlocks the app for 24 hours).
+ */
+export const TEST_PLAN: Plan = {
+  id: "test",
+  periodMonths: 1,
+  priceCents: 500,
+  currency: "BRL",
+  appPriceCents: null,
+  title: "Teste",
+  sub: "Compra de teste interna",
+};
+
+export const planById = (id: string): Plan | undefined => (id === TEST_PLAN.id ? TEST_PLAN : PLANS.find((p) => p.id === id));
 
 export function brl(cents: number): string {
   return (cents / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
