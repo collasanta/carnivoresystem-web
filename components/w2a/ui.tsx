@@ -155,12 +155,14 @@ export function Disclaimer({ className }: { className?: string }) {
   );
 }
 
-export function StoreButtons({ appStore, playStore, onClick }: { appStore: string; playStore: string; onClick?: (store: "app_store" | "google_play") => void }) {
+/** Renders only the stores it is given. */
+export function StoreButtons({ appStore, playStore, onClick }: { appStore?: string; playStore?: string; onClick?: (store: "app_store" | "google_play") => void }) {
   const cls =
     "flex h-14 flex-1 items-center justify-center gap-2.5 rounded-2xl bg-cta px-4 text-white shadow-[0_10px_30px_rgba(37,30,23,0.2)] transition hover:bg-ctah";
   return (
     <div className="flex flex-col gap-3 sm:flex-row">
-      <a href={appStore} className={cls} onClick={() => onClick?.("app_store")}>
+      {appStore && (
+        <a href={appStore} className={cls} onClick={() => onClick?.("app_store")}>
         <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
           <path d="M16.4 12.6c0-2.6 2.1-3.8 2.2-3.9-1.2-1.8-3.1-2-3.7-2-1.6-.2-3.1.9-3.9.9-.8 0-2-.9-3.4-.9-1.7 0-3.3 1-4.2 2.6-1.8 3.1-.5 7.8 1.3 10.3.9 1.2 1.9 2.6 3.2 2.6 1.3-.1 1.8-.8 3.4-.8 1.6 0 2 .8 3.4.8 1.4 0 2.3-1.3 3.1-2.5 1-1.4 1.4-2.8 1.4-2.9 0 0-2.8-1.1-2.8-4.2zM14 4.9c.7-.9 1.2-2.1 1.1-3.3-1 0-2.3.7-3 1.6-.7.8-1.2 2-1.1 3.2 1.1.1 2.3-.6 3-1.5z" />
         </svg>
@@ -168,8 +170,10 @@ export function StoreButtons({ appStore, playStore, onClick }: { appStore: strin
           <small className="block text-[11px] opacity-80">Baixar na</small>
           <b className="text-[17px]">App Store</b>
         </span>
-      </a>
-      <a href={playStore} className={cls} onClick={() => onClick?.("google_play")}>
+        </a>
+      )}
+      {playStore && (
+        <a href={playStore} className={cls} onClick={() => onClick?.("google_play")}>
         <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true">
           <path d="M4 2.6 13.4 12 4 21.4c-.3-.2-.5-.6-.5-1V3.6c0-.4.2-.8.5-1z" fill="#00a0ff" />
           <path d="M16.6 8.8 13.4 12 4 2.6c.3-.2.8-.2 1.2 0l11.4 6.2z" fill="#00dc6e" />
@@ -180,7 +184,8 @@ export function StoreButtons({ appStore, playStore, onClick }: { appStore: strin
           <small className="block text-[11px] opacity-80">Disponível no</small>
           <b className="text-[17px]">Google Play</b>
         </span>
-      </a>
+        </a>
+      )}
     </div>
   );
 }

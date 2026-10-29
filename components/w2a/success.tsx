@@ -2,7 +2,9 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { appStoreUrl, deepLink, formatCode, playStoreUrl } from "@/lib/web2app/links";
+import QRCode from "qrcode";
+import { useDevice } from "@/lib/web2app/device";
+import { activationUrl, appStoreUrl, deepLink, formatCode, playStoreUrl } from "@/lib/web2app/links";
 import { brl, planById } from "@/lib/web2app/plans";
 import { once, track } from "@/lib/web2app/pixel";
 import { useFunnel } from "@/lib/web2app/state";
@@ -132,11 +134,15 @@ export function Success() {
   return <Activation code={p.code!} purchase={p} pid={pid} token={t} />;
 }
 
-/** The "download + activate" panel. Used by /quiz/sucesso (with the purchase) and /quiz/ativar (code only, from the e-mail). */
+/**
+ * The "download + activate" panel. Used by /quiz/sucesso (with the purchase) and /quiz/ativar (code only, from the
+ * e-mail or the QR code). Phones see only their store; a computer sees a QR code of /quiz/ativar to finish on the phone.
+ */
 export function Activation({ code, purchase, pid, token }: { code: string; purchase?: PublicPurchase; pid?: string; token?: string }) {
   const plan = purchase ? planById(purchase.plan) : null;
   const [copied, setCopied] = useState(false);
   const pretty = formatCode(code);
+  const device = useDevice();
   const copy = async () => {
     try {
       await navigator.clipboard.writeText(pretty);
@@ -174,20 +180,36 @@ export function Activation({ code, purchase, pid, token }: { code: string; purch
         <p className="mt-2 text-center text-[12.5px] text-mute">{copied ? "Copiado!" : "Toque para copiar"}</p>
       </Card>
 
+      {device === "desktop" && <PhoneQr code={code} />}
+
       <ol className="mt-6 flex flex-col gap-5">
         <li>
-          <h2 className="text-[16px] font-extrabold">1. Baixe o app</h2>
-          <p className="mt-1 mb-3 text-[13px] leading-relaxed text-mute">No Android, instalando por este botão o app já ativa sozinho.</p>
-          <StoreButtons appStore={appStoreUrl()} playStore={playStoreUrl(code)} />
+          <h2 className="text-[16px] font-extrabold">1. Baixe o app{device === "desktop" ? " no seu celular" : ""}</h2>
+          <p className="mt-1 mb-3 text-[13px] leading-relaxed text-mute">
+            {device === "ios"
+              ? "Instale o LeoDiet pela App Store."
+              : device === "desktop"
+                ? "O LeoDiet é um app para iPhone e Android. Pelo QR code acima é mais rápido; ou procure “LeoDiet” na loja do celular."
+                : "No Android, instalando por este botão o app já ativa sozinho."}
+          </p>
+          {device !== "desktop" && <StoreButtons appStore={device === "android" ? undefined : appStoreUrl()} playStore={device === "ios" ? undefined : playStoreUrl(code)} />}
         </li>
         <li>
           <h2 className="text-[16px] font-extrabold">2. Ative o seu acesso</h2>
-          <p className="mt-1 mb-3 text-[13px] leading-relaxed text-mute">
-            Com o app instalado neste celular, toque abaixo. Se não abrir: no app, na tela de planos, toque em <b className="text-ink">“Já comprei no site”</b> e digite o código.
-          </p>
-          <a href={deepLink(code)} className="flex h-14 w-full items-center justify-center rounded-2xl border-[1.5px] border-cta bg-card text-[16px] font-bold text-ink transition hover:bg-tint">
-            Já instalei, abrir o app
-          </a>
+          {device === "desktop" ? (
+            <p className="mt-1 text-[13px] leading-relaxed text-mute">
+              No app, na tela de planos, toque em <b className="text-ink">“Já comprei no site”</b> e digite o código acima.
+            </p>
+          ) : (
+            <>
+              <p className="mt-1 mb-3 text-[13px] leading-relaxed text-mute">
+                Com o app instalado neste celular, toque abaixo. Se não abrir: no app, na tela de planos, toque em <b className="text-ink">“Já comprei no site”</b> e digite o código.
+              </p>
+              <a href={deepLink(code)} className="flex h-14 w-full items-center justify-center rounded-2xl border-[1.5px] border-cta bg-card text-[16px] font-bold text-ink transition hover:bg-tint">
+                Já instalei, abrir o app
+              </a>
+            </>
+          )}
         </li>
       </ol>
 
@@ -197,6 +219,24 @@ export function Activation({ code, purchase, pid, token }: { code: string; purch
         O código funciona em até 3 aparelhos. Precisa de ajuda? <a className="underline" href="mailto:leo@leodiet.com">leo@leodiet.com</a>
       </p>
     </Page>
+  );
+}
+
+/** QR code of /quiz/ativar for this code: opened on the phone it shows that phone's store (Android activates by itself). */
+function PhoneQr({ code }: { code: string }) {
+  const [svg, setSvg] = useState<string | null>(null);
+  useEffect(() => {
+    QRCode.toString(activationUrl(window.location.origin, code), { type: "svg", margin: 1, errorCorrectionLevel: "M", color: { dark: "#251e17", light: "#ffffff" } })
+      .then(setSvg)
+      .catch(() => setSvg(null));
+  }, [code]);
+  if (!svg) return null;
+  return (
+    <Card className="mt-6 text-center">
+      <div className="text-[16px] font-extrabold">Continue no celular</div>
+      <p className="mx-auto mt-1 max-w-[320px] text-[13px] leading-relaxed text-mute">Aponte a câmera do celular para o código abaixo para instalar o LeoDiet e ativar o seu acesso.</p>
+      <div className="mx-auto mt-4 size-[200px] rounded-xl bg-white p-2 [&>svg]:size-full" role="img" aria-label="QR code para ativar no celular" dangerouslySetInnerHTML={{ __html: svg }} />
+    </Card>
   );
 }
 

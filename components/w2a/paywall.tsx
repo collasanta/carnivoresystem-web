@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import { formatCpf, isValidCpf } from "@/lib/web2app/cpf";
 import type { ProviderInfo } from "@/lib/web2app/payments";
 import { PLANS, brl, perMonth, planById, type PlanId } from "@/lib/web2app/plans";
+import { useDevice, type Device } from "@/lib/web2app/device";
 import { fmtDate, fmtKg, project } from "@/lib/web2app/projection";
 import { track } from "@/lib/web2app/pixel";
 import { metaCookies, useFunnel } from "@/lib/web2app/state";
@@ -23,11 +24,28 @@ const INCLUDED = [
   "Calendário de dias limpos e sequências",
   "Humor, sintomas e peso com gráficos",
   "Cards para compartilhar o seu progresso",
-  "iPhone e Android, em português",
+  "App para iPhone e Android, em português",
 ];
 
+/** The 3 "how it works" steps; the last one names the visitor's store. */
+function steps(device: Device | null): { t: string; d: string }[] {
+  const install =
+    device === "ios"
+      ? { t: "Baixe o app no seu iPhone", d: "Instale o LeoDiet pela App Store e ative com o código." }
+      : device === "android"
+        ? { t: "Baixe o app no seu Android", d: "Instale o LeoDiet no Google Play pelo nosso botão: ele já ativa sozinho." }
+        : device === "desktop"
+          ? { t: "Instale no seu celular", d: "O LeoDiet é um app para iPhone e Android. Na próxima tela mostramos um QR code: aponte a câmera do celular para instalar e ativar." }
+          : { t: "Baixe o app", d: "Instale o LeoDiet no iPhone ou no Android e ative com o código." };
+  return [
+    { t: "Pague aqui", d: "Pix ou cartão, pagamento único." },
+    { t: "Receba o seu código", d: "Ele aparece na tela e chega no seu e-mail." },
+    install,
+  ];
+}
+
 const FAQ = [
-  { q: "Como eu acesso depois de pagar?", a: "Você recebe um código na tela e por e-mail. Baixe o LeoDiet na App Store ou no Google Play e ative com o código. No Android ele pode ativar sozinho quando você instala pelo nosso botão." },
+  { q: "Como eu acesso depois de pagar?", a: "O LeoDiet é um aplicativo de celular. Você recebe um código na tela e por e-mail, baixa o LeoDiet na App Store ou no Google Play e ativa com o código. No Android ele pode ativar sozinho quando você instala pelo nosso botão." },
   { q: "É assinatura? Vai cobrar de novo?", a: "Não. Os planos daqui são pagamento único: 3 meses, 12 meses ou vitalício. Nada renova sozinho." },
   { q: "E se eu me arrepender?", a: "Você pode pedir o reembolso em até 7 dias após a compra, sem precisar explicar o motivo. É só escrever para leo@leodiet.com." },
   { q: "Funciona em mais de um celular?", a: "Sim, o código pode ser ativado em até 3 aparelhos." },
@@ -68,6 +86,7 @@ export function Paywall({ provider }: { provider: ProviderInfo }) {
   const [cpf, setCpf] = useState(() => formatCpf(ss.get("w2a_cpf") ?? ""));
   const [cpfError, setCpfError] = useState(false);
   const proj = useMemo(() => (ready ? project(state.answers) : null), [ready, state.answers]);
+  const device = useDevice();
 
   useEffect(() => {
     if (!ready) return;
@@ -143,7 +162,7 @@ export function Paywall({ provider }: { provider: ProviderInfo }) {
     <Page>
       <TopBar onBack={() => router.push("/quiz/plano")} />
       <Title sub={proj && proj.kind === "lose" ? `Meta: ${fmtKg(proj.targetKg)} até ${fmtDate(proj.date)} (estimativa)` : undefined}>
-        {name ? `${name}, comece hoje o seu plano` : "Comece hoje o seu plano"}
+        {name ? `${name}, seu plano no app LeoDiet` : "Seu plano no app LeoDiet"}
       </Title>
 
       <div role="radiogroup" aria-label="Planos" className="flex flex-col gap-3">
@@ -182,6 +201,23 @@ export function Paywall({ provider }: { provider: ProviderInfo }) {
           );
         })}
       </div>
+
+      <Card className="mt-5">
+        <div className="text-[12px] font-semibold tracking-[0.12em] text-mute uppercase">Como funciona</div>
+        <ol className="mt-3 flex flex-col gap-3">
+          {steps(device).map((st, i) => (
+            <li key={st.t} className="flex gap-3">
+              <span className="flex size-6 flex-none items-center justify-center rounded-full bg-walnut text-[12px] font-bold text-white" aria-hidden="true">
+                {i + 1}
+              </span>
+              <span>
+                <span className="block text-[14px] font-bold">{st.t}</span>
+                <span className="block text-[12.5px] leading-relaxed text-mute">{st.d}</span>
+              </span>
+            </li>
+          ))}
+        </ol>
+      </Card>
 
       {methods.length > 1 && (
         <div className="mt-5">

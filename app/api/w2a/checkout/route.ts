@@ -3,6 +3,7 @@ import { timingSafeEqual } from "node:crypto";
 import { TEST_PLAN, planById } from "@/lib/web2app/plans";
 import { getProvider, providerById } from "@/lib/web2app/payments";
 import type { PayMethod } from "@/lib/web2app/payments/types";
+import { deviceFromUa } from "@/lib/web2app/device";
 import { eq, insert, selectOne, update } from "@/lib/web2app/server/db";
 import { newAccessToken, type PurchaseRow } from "@/lib/web2app/server/fulfill";
 import { FBC_RE, FBP_RE, clientIp, json, match, originOf, str, userAgent } from "@/lib/web2app/server/http";
@@ -55,6 +56,7 @@ export async function POST(req: Request) {
       fbp: match(b.fbp, FBP_RE) ?? lead.fbp,
       client_ip: clientIp(req),
       user_agent: userAgent(req),
+      platform: deviceFromUa(userAgent(req) ?? ""),
     });
     const origin = originOf(req);
     let action;
