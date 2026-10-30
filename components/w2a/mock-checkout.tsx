@@ -2,7 +2,7 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
-import { brl, planById } from "@/lib/web2app/plans";
+import { brl, order } from "@/lib/web2app/plans";
 import { useFunnel } from "@/lib/web2app/state";
 import { Card, Page, Title, TopBar } from "./ui";
 
@@ -17,7 +17,7 @@ export function MockCheckout() {
   const { state, ready } = useFunnel();
   const pid = q.get("pid") ?? "";
   const t = q.get("t") ?? "";
-  const plan = planById(state.purchase?.plan ?? state.plan ?? "");
+  const o = state.purchase ? order(state.purchase.plan, state.purchase.includesEbook ?? state.purchase.plan === "ebook") : null;
   const [busy, setBusy] = useState<"approve" | "decline" | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -44,15 +44,15 @@ export function MockCheckout() {
 
   return (
     <Page>
-      <TopBar onBack={() => router.push("/quiz/oferta")} />
+      <TopBar onBack={() => router.back()} />
       <div className="mt-4 rounded-2xl border border-warn/50 bg-warn/10 px-4 py-3 text-center text-[12.5px] leading-relaxed text-ink">
         <b>Ambiente de teste local.</b> Pagamento simulado (PAYMENT_PROVIDER=mock); nenhum valor é cobrado.
       </div>
       <Title>Pagamento</Title>
       <Card>
         <div className="flex items-center justify-between text-[15px]">
-          <span className="text-mute">Plano</span>
-          <b>{plan?.title ?? "–"}</b>
+          <span className="text-mute">Pedido</span>
+          <b>{o?.label ?? "–"}</b>
         </div>
         <div className="mt-2 flex items-center justify-between text-[15px]">
           <span className="text-mute">E-mail</span>
@@ -60,7 +60,7 @@ export function MockCheckout() {
         </div>
         <div className="mt-4 flex items-center justify-between border-t border-line pt-4 text-[18px]">
           <span className="font-bold">Total</span>
-          <b>{plan ? brl(plan.priceCents) : "–"}</b>
+          <b>{o ? brl(o.amountCents) : "–"}</b>
         </div>
       </Card>
       <div className="mt-6 flex flex-col gap-3">

@@ -23,6 +23,10 @@ export type CheckoutInput = {
   /** browser-side secret for this purchase; put it in return URLs so the success page can read the purchase */
   accessToken: string;
   plan: Plan;
+  /** what to charge: the order total (guide + app plan, the guide alone, or the app alone), from plans.ts order() */
+  amountCents: number;
+  /** charge description shown by the gateway */
+  description: string;
   email: string;
   name?: string;
   /** absolute URLs on this site */

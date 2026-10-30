@@ -13,11 +13,13 @@
  * makes the annual the obvious pick. `appPriceCents` is shown struck through ("no app: R$ 129,90"); it must stay a real,
  * current app price, or be removed (Código de Defesa do Consumidor: a "de/por" price must be real).
  */
-export type PlanId = "quarterly" | "annual" | "lifetime" | "test";
+export type PlanId = "quarterly" | "annual" | "lifetime" | "test" | "ebook";
 
 export type Plan = {
   id: PlanId;
-  /** months of Pro once the code is redeemed; null = lifetime */
+  /** "app" = LeoDiet Pro through a redemption code; "ebook" = the PDF guide (no code, never Pro) */
+  kind?: "app" | "ebook";
+  /** months of Pro once the code is redeemed; null = lifetime (app plans only: ignored for the ebook) */
   periodMonths: number | null;
   priceCents: number;
   currency: "BRL";
@@ -78,7 +80,29 @@ export const TEST_PLAN: Plan = {
   sub: "Compra de teste interna",
 };
 
-export const planById = (id: string): Plan | undefined => (id === TEST_PLAN.id ? TEST_PLAN : PLANS.find((p) => p.id === id));
+/**
+ * The "Guia do Desafio Carnívoro de 30 dias" PDF, R$ 5,00 (Asaas' minimum charge). Since 2026-10-29 /quiz/oferta sells
+ * it ALWAYS, with the app as a pre-checked order bump right below (one charge for the total, see `order()`):
+ *   - guide + app plan → web_purchases.plan = the app plan, includes_ebook = true, amount = 500 + plan price;
+ *   - guide only (bump unchecked) → plan = 'ebook', includes_ebook = true, amount = 500, NO redemption code.
+ * The guide is downloaded through GET /api/w2a/ebook (private Supabase Storage object). The DB never turns plan 'ebook'
+ * into Pro (leo migration 20261029020000_web2app_ebook.sql).
+ */
+export const GUIDE: Plan = {
+  id: "ebook",
+  kind: "ebook",
+  periodMonths: null,
+  priceCents: 500,
+  currency: "BRL",
+  appPriceCents: null,
+  title: "Guia do Desafio Carnívoro de 30 dias",
+  sub: "PDF · pagamento único",
+};
+
+export const planById = (id: string): Plan | undefined =>
+  id === TEST_PLAN.id ? TEST_PLAN : id === GUIDE.id ? GUIDE : PLANS.find((p) => p.id === id);
+
+export const isGuide = (id: string | null | undefined) => id === GUIDE.id;
 
 export function brl(cents: number): string {
   return (cents / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -88,4 +112,22 @@ export function brl(cents: number): string {
 export function perMonth(p: Plan): string | null {
   if (!p.periodMonths) return null;
   return `${brl(Math.round(p.priceCents / p.periodMonths))}/mês`;
+}
+
+/** What one checkout buys: `plan` = the app plan, or 'ebook' for the guide alone; `includesEbook` = the guide is in it. */
+export type Order = { plan: PlanId; includesEbook: boolean };
+
+/**
+ * Normalizes an order and prices it (server and browser use the same function; the server never trusts a browser
+ * amount). 'ebook' always includes the guide. Returns null for an unknown plan.
+ */
+export function order(planId: string, includesEbook: boolean): (Order & { amountCents: number; app: Plan | null; label: string; description: string }) | null {
+  const p = planById(planId);
+  if (!p) return null;
+  if (p.id === GUIDE.id) return { plan: p.id, includesEbook: true, amountCents: GUIDE.priceCents, app: null, label: "Guia do Desafio (PDF)", description: `LeoDiet · ${GUIDE.title} (PDF) · pagamento único` };
+  const amountCents = p.priceCents + (includesEbook ? GUIDE.priceCents : 0);
+  const appName = p.id === TEST_PLAN.id ? "app (teste)" : p.periodMonths ? `app ${p.periodMonths} meses` : "app vitalício";
+  return includesEbook
+    ? { plan: p.id, includesEbook, amountCents, app: p, label: `Guia + ${appName}`, description: `LeoDiet · Guia do Desafio (PDF) + ${appName} · pagamento único` }
+    : { plan: p.id, includesEbook, amountCents, app: p, label: `App LeoDiet · ${p.title}`, description: `LeoDiet Pro · ${p.title} · pagamento único` };
 }

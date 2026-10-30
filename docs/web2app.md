@@ -16,7 +16,7 @@ flowchart TD
   P --> E[e-mail step]
   E -->|POST /api/w2a/lead → web_leads<br/>Lead pixel| ST[Quando você começa?<br/>hoje / amanhã / próxima segunda]
   ST --> PL[pledge: press and hold<br/>Eu aceito o desafio<br/>lead updated with challengeStart]
-  PL --> O[/quiz/oferta<br/>web paywall, plans.ts/]
+  PL --> O[/quiz/oferta<br/>guide R$ 5 + pre-checked app bump, one charge/]
   O -->|InitiateCheckout, AddPaymentInfo<br/>method + CPF<br/>POST /api/w2a/checkout → web_purchases pending| G{payment provider}
   G -->|mock, local dev: /quiz/pagamento| M[approve / decline buttons<br/>POST /api/w2a/mock-pay]
   G -->|asaas Pix: /quiz/pagamento?m=pix| PX[QR + copia-e-cola<br/>polls /api/w2a/purchase]
@@ -59,6 +59,52 @@ e-mail or an expired Pix). Helpers and copy: `lib/web2app/challenge.ts`. The new
 PostHog: `w2a_challenge_start_view`, `w2a_challenge_start_picked {start}`, `w2a_challenge_pledge_view`,
 `w2a_challenge_accepted {start}`; `w2a_paywall_view` carries `accepted`. Nothing new goes to the pixel.
 
+## Guide + app order bump (2026-10-29)
+
+`/quiz/oferta` no longer lists the app plans as the product. It sells the **Guia do Desafio Carnívoro de 30 dias**
+(PDF, R$ 5,00 = Asaas' minimum, `GUIDE` in `lib/web2app/plans.ts`), always included, plus an **order bump** right
+below, **pre-checked**: "Adicionar o app LeoDiet" (lembretes de sal e água · marque o dia em um toque · calendário dos
+30 dias · comemoração no dia 30) with the plan inside (12 meses pre-selected, 3 meses, vitalício; same prices and real
+"no app" strike-throughs as before). A total line updates live ("Total R$ 84,90" / "R$ 5,00", the largest price on the
+page, "pagamento único · não renova"). Unchecking leaves the guide alone; tapping a plan re-checks it. **One checkout,
+one charge** for the total (Pix or card, CPF as before).
+
+| Order | `web_purchases.plan` | `includes_ebook` | `amount_cents` | code |
+|---|---|---|---|---|
+| guide + app (bump on) | quarterly / annual / lifetime | true | 500 + plan | yes |
+| guide alone (bump off) | `ebook` | true | 500 | **never** |
+| app alone (follow-up offer, rows before 2026-10-29) | quarterly / annual / lifetime | false | plan | yes |
+
+- Pricing: `order(plan, includesEbook)` in `plans.ts`, used by the browser and re-run by `POST /api/w2a/checkout`
+  (`{plan, ebook}`; `ebook` defaults to true). `ebook: false` is only accepted when the lead already has a paid
+  guide (or for the test script). The gateway gets `amountCents` + `description` (`CheckoutInput`).
+- Fulfillment (`fulfill.ts`): app plan → code + code e-mail that **also links the guide** when `includes_ebook`;
+  guide alone → guide e-mail (download button), no code. CAPI Purchase with the total (`event_id w2a_<id>`);
+  PostHog `w2a_paid {plan, includes_ebook, includes_app, value}`. Refund: Pro is revoked only when an app plan was in it.
+- Download: `GET /api/w2a/ebook?pid&t` checks the token + `includes_ebook` + `paid`, then 302 to a 5-minute signed URL
+  of the **private** Supabase Storage object `w2a-ebook/desafio-carnivoro-30-dias.pdf` (service role; override with
+  `W2A_EBOOK_BUCKET` / `W2A_EBOOK_OBJECT`). Missing bucket/object → 503 page "O guia está sendo atualizado" + log
+  `[w2a/ebook] missing`. The e-mail links point to this route, so they keep working.
+- Success page: guide card ("Baixar o guia (PDF)" + "Também enviamos para o seu e-mail") always on top; with the app,
+  then "Agora, ative o seu app" + code / store buttons / desktop QR as before. Guide alone: a soft follow-up offer
+  "Faça o desafio no app LeoDiet" (`components/w2a/upsell.tsx`, separate app-only checkout for the same lead,
+  "Não, obrigado" collapses it); once that app purchase is paid its success page shows the same guide card (linked
+  purchase) and the guide page shows "Ver o meu código".
+- Retry (expired Pix, refused card): back to `/quiz/oferta?m=` with the same bump + plan (`state.bump`, `state.plan`);
+  an app bought from the follow-up offer goes back to that offer (`/quiz/sucesso?…&upsell=1#upsell`).
+- Events. Pixel: `InitiateCheckout` on the offer (value = default total), `AddPaymentInfo` on pay (total),
+  `Purchase` on success (total, `content_ids` web_ebook + web_<plan>, eventID `w2a_<id>`). PostHog:
+  `w2a_paywall_view {bump, plan}`, `w2a_bump_toggled {on}`, `w2a_bump_plan_selected {plan}`,
+  `w2a_checkout_started {plan, includes_app, includes_ebook, value, method}`, `w2a_ebook_download {source}`
+  (+ server `w2a_ebook_download_served`), `w2a_upsell_view`, `w2a_upsell_plan_selected`, `w2a_upsell_declined`,
+  `w2a_upsell_checkout_started`.
+- DB (repo leo, branch `w2a-ebook`, migration `20261029020000_web2app_ebook.sql`, **apply before deploying this**:
+  the checkout writes `includes_ebook`): column `includes_ebook boolean not null default false`, plan `ebook` allowed,
+  `ebook ⇒ includes_ebook` and `ebook ⇒ code is null`; `redeem_web_code` skips/refuses plan `ebook` and a null
+  `period_months` means lifetime **only** for plan `lifetime` (it used to mean lifetime for any plan). The `w2a-redeem`
+  e-mail claim filters `plan <> 'ebook'` (redeploy the function).
+- Placeholder cover: `public/quiz/ebook-cover.png`.
+
 ## Files
 
 **This repo (carnivoresystem-web)**
@@ -74,7 +120,7 @@ PostHog: `w2a_challenge_start_view`, `w2a_challenge_start_picked {start}`, `w2a_
 | `app/quiz/pagamento/page.tsx` | `?m=pix`: Pix QR page · `?m=card`: card in a new tab (only when Asaas can't redirect back) · no `m`: mock checkout. |
 | `app/quiz/sucesso/page.tsx` | confirmation, code, store buttons, deep link, e-mail me the code. |
 | `app/quiz/ativar/page.tsx` | `/quiz/ativar?c=CODE` — the link in the e-mail. |
-| `components/w2a/*` | UI: `ui.tsx` (building blocks), `quiz.tsx`, `plan.tsx`, `paywall.tsx` (plans, Pix/cartão, CPF), `checkout.tsx` (Pix QR + polling, card wait, expired / refused states), `mock-checkout.tsx`, `success.tsx`, `activate.tsx`. |
+| `components/w2a/*` | UI: `ui.tsx` (building blocks), `quiz.tsx`, `plan.tsx`, `paywall.tsx` (guide + app bump, total), `pay.tsx` (Pix/cartão, CPF, checkout call, retry URLs), `upsell.tsx` (follow-up app offer on the guide-alone success page), `checkout.tsx` (Pix QR + polling, card wait, expired / refused states), `mock-checkout.tsx`, `success.tsx`, `activate.tsx`. |
 | `lib/web2app/quiz.ts` | **the questions** (`STEPS`), milestones, validation. Bump `QUIZ_VERSION` when you change them. |
 | `lib/web2app/plans.ts` | **prices** (BRL, cents). Edit here; the server re-reads them on checkout (the browser never sets the price). |
 | `lib/web2app/challenge.ts` | 30-day challenge: start options, day 1 → 30 dates, kg on day 30, phases, pledge lines. |
@@ -97,10 +143,13 @@ PostHog: `w2a_challenge_start_view`, `w2a_challenge_start_picked {start}`, `w2a_
 | `app/api/w2a/checkout` | POST: pending purchase + `provider.createCheckout()` (`method`, `cpf`, `replace` = previous unpaid attempt, canceled at the gateway). |
 | `app/api/w2a/purchase` | GET `?pid&t[&check=1]`: purchase status + `reason` (`pix_expired`, `card_refused`, `canceled`) for the buyer's browser (token-checked). `check=1` (every ~15 s) also asks the gateway. |
 | `app/api/w2a/mock-pay` | POST: mock approve/decline (refused unless provider = mock). |
-| `app/api/w2a/email-code` | POST: (re)send the code, max 5, can correct the e-mail. |
+| `app/api/w2a/email-code` | POST: (re)send the purchase e-mail (code, or guide), max 5, can correct the e-mail. |
+| `app/api/w2a/ebook` | GET `?pid&t`: guide download (token + paid + includes_ebook → signed Storage URL). |
 | `app/api/web2app/asaas-webhook` | POST: **Asaas webhook** (the URL to register in the portal). |
 | `app/api/w2a/webhook/[provider]` | POST: generic gateway webhooks → `provider.parseWebhook()` → fulfill / mark (`/api/w2a/webhook/asaas` works too). |
 | `scripts/w2a-fake-asaas.mjs` | fake Asaas API for local tests (no network, no money). |
+| `scripts/w2a-fake-supabase.mjs` | fake Supabase (PostgREST subset + Storage signed URLs, in memory) so local tests never touch the real DB. |
+| `scripts/w2a-test-checkout.sh` | real-money smoke test: `<url> [test|ebook|quarterly|annual|lifetime] [ebook 1|0]`; every purchase it makes is `test`. |
 
 **Repo leo (branch `web2app-redeem`)**
 
@@ -118,7 +167,7 @@ PostHog: `w2a_challenge_start_view`, `w2a_challenge_start_picked {start}`, `w2a_
 ## Data
 
 - `web_leads`: e-mail, name, quiz answers (jsonb), computed plan, attribution (fbclid/fbc/fbp/utm/landing/referrer/IP/UA), `marketing_ok`.
-- `web_purchases`: plan, amount, provider + `provider_ref`, status (`pending|paid|failed|refunded|canceled`), `test`, `access_token` (lets the buyer's browser read the status), `code`, `redemptions/max_redemptions`, CAPI and e-mail bookkeeping.
+- `web_purchases`: plan (app plan or `ebook` = guide alone), `includes_ebook`, amount (order total), provider + `provider_ref`, status (`pending|paid|failed|refunded|canceled`), `test`, `access_token` (lets the buyer's browser read the status), `code`, `redemptions/max_redemptions`, CAPI and e-mail bookkeeping.
 - `web_redemptions`: one row per (purchase, app user): platform, app version, `pro_until`, RevenueCat result.
 
 ## App side: e-mail claim and profile from the quiz
@@ -168,6 +217,8 @@ Quiz answers are health data: they stay in Supabase and are **never** sent to Me
 | `W2A_ALLOW_MOCK_IN_PRODUCTION` | no | `1` would allow the mock on the production deployment. **Never set it.** |
 | `META_CAPI_TOKEN` | for CAPI | same token as the app's `meta-capi` function (dataset/pixel 1370037514985006). Without it the browser pixel still works. |
 | `META_TEST_EVENT_CODE` | no | only for testing in Events Manager › Test events. Test purchases go to CAPI **only** when it is set. |
+| `W2A_EBOOK_BUCKET` / `W2A_EBOOK_OBJECT` | no | guide location in Supabase Storage (default `w2a-ebook` / `desafio-carnivoro-30-dias.pdf`, private bucket). Uses `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY`. |
+| `W2A_POSTHOG_SERVER` | no | `0` turns off server-side PostHog (local tests). |
 
 **Not set on Vercel yet** (2026-10-27): without them the preview shows the quiz, plan and paywall, but the e-mail step fails (no DB). To enable the preview (values from `~/.config/33web/supabase.env`, nothing printed):
 
@@ -182,7 +233,7 @@ Production has none of them yet.
 
 ## Pixel / CAPI rules
 
-- Browser: `ViewContent` (quiz start), custom `QuizQuarter/QuizHalf/QuizThreeQuarters/QuizComplete`, `Lead` (eventID `lead_<id>`), `InitiateCheckout` (paywall view), `AddPaymentInfo` (Continuar), `Purchase` with value/currency (eventID `w2a_<purchaseId>`).
+- Browser: `ViewContent` (quiz start), custom `QuizQuarter/QuizHalf/QuizThreeQuarters/QuizComplete`, `Lead` (eventID `lead_<id>`), `InitiateCheckout` (offer view, default total), `AddPaymentInfo` (pay, order total), `Purchase` with the order total (eventID `w2a_<purchaseId>`).
 - Server: CAPI `Purchase` with the same `event_id` → Meta deduplicates.
 - Test purchases (mock provider, `web_purchases.test = true`): the browser Purchase fires only with `?pixel=1` in the funnel URL (sessionStorage flag), and CAPI only when `META_TEST_EVENT_CODE` is set. No fake purchase reaches the real dataset by accident.
 - The pixel loads only on `*.leodiet.com` (or with `?pixel=1`), so preview deploys stay quiet.
@@ -332,6 +383,11 @@ preview too; a sandbox key there is the safer choice (below).
 ## Testing
 
 Local (mock): `PAYMENT_PROVIDER=mock npm run dev` (port 3107 in the launcher), open `/quiz?fbclid=TEST&utm_source=fb`, finish the quiz, use a `@resend.dev` test address (`delivered@resend.dev`), pick a plan, "Simular pagamento aprovado". Test codes unlock the app for **24 h** only.
+
+Local without the real DB (what the 2026-10-29 bump was tested with): launcher config `carnivore-web-fake` (port 3108) =
+`node scripts/w2a-fake-supabase.mjs <dir>` (port 3998; `<dir>/w2a-ebook/desafio-carnivoro-30-dias.pdf` = the stub guide) +
+`SUPABASE_URL=http://localhost:3998 SUPABASE_SERVICE_ROLE_KEY=fake RESEND_API_KEY= META_CAPI_TOKEN= PAYMENT_PROVIDER=mock W2A_POSTHOG_SERVER=0 npx next dev`
+(empty values beat `.env.local`: no real DB, no e-mail, no CAPI). `GET localhost:3998/_dump` shows the rows.
 
 Local (Asaas, no network): `node scripts/w2a-fake-asaas.mjs`, then
 `PAYMENT_PROVIDER=asaas ASAAS_ENV=sandbox ASAAS_BASE_URL=http://localhost:3999/v3 ASAAS_API_KEY=aact_fake ASAAS_WEBHOOK_TOKEN=<any 32+ chars> npm run dev`.

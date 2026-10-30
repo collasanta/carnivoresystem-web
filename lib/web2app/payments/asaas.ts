@@ -146,9 +146,9 @@ export const asaasProvider: PaymentProvider = {
     const customer = await customerFor(input);
     const base = {
       customer,
-      value: input.plan.priceCents / 100,
+      value: input.amountCents / 100,
       dueDate: dueDate(),
-      description: `LeoDiet Pro · ${input.plan.title} · pagamento único`,
+      description: input.description,
       externalReference: input.purchaseId,
     };
 
