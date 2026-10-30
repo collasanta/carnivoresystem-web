@@ -1,16 +1,19 @@
 import { cpfDigits, isValidCpf } from "@/lib/web2app/cpf";
 import { timingSafeEqual } from "node:crypto";
-import { TEST_PLAN, planById } from "@/lib/web2app/plans";
+import { TEST_PLAN, order as priceOrder, planById } from "@/lib/web2app/plans";
 import { getProvider, providerById } from "@/lib/web2app/payments";
 import type { PayMethod } from "@/lib/web2app/payments/types";
 import { deviceFromUa } from "@/lib/web2app/device";
-import { eq, insert, selectOne, update } from "@/lib/web2app/server/db";
+import { eq, insert, select, selectOne, update } from "@/lib/web2app/server/db";
 import { newAccessToken, type PurchaseRow } from "@/lib/web2app/server/fulfill";
 import { FBC_RE, FBP_RE, clientIp, json, match, originOf, str, userAgent } from "@/lib/web2app/server/http";
 
 /**
- * POST /api/w2a/checkout {leadId, plan, method?, cpf?, replace?: {pid, t}, fbc?, fbp?} — creates the purchase (pending)
- * and asks the active payment provider for a checkout. `method` (pix | card) and `cpf` are required by providers that
+ * POST /api/w2a/checkout {leadId, plan, ebook?, method?, cpf?, replace?: {pid, t}, fbc?, fbp?} — creates the purchase
+ * (pending) and asks the active payment provider for ONE charge of the order total. `plan` = the app plan
+ * (quarterly | annual | lifetime | hidden test) or 'ebook' for the guide alone; `ebook` (default true) = the R$ 5 guide is
+ * in the order (/quiz/oferta: guide + pre-checked app bump). `ebook: false` (app alone) is only accepted for a lead that
+ * already has a paid guide (the follow-up offer on the guide-only success page) or a test request. `method` (pix | card) and `cpf` are required by providers that
  * declare them (Asaas). `replace` = the buyer's previous unpaid purchase (expired Pix, refused card): its charge is
  * canceled at the gateway so it can't be paid twice. The CPF is forwarded to the gateway only, never stored. Answers {purchaseId, token, action} where action is a redirect URL or a Pix QR
  * (lib/web2app/payments/types.ts). The price always comes from lib/web2app/plans.ts, never from the browser.
@@ -22,8 +25,10 @@ export async function POST(req: Request) {
   } catch {
     return json({ error: "json" }, 400);
   }
-  const plan = planById(String(b.plan ?? ""));
-  if (!plan || (plan.id === TEST_PLAN.id && !isTestRequest(req))) return json({ error: "plan" }, 400);
+  const o = priceOrder(String(b.plan ?? ""), b.ebook !== false);
+  const plan = o?.app ?? (o ? planById(o.plan) : undefined);
+  const testReq = isTestRequest(req);
+  if (!o || !plan || (plan.id === TEST_PLAN.id && !testReq)) return json({ error: "plan" }, 400);
   const leadId = str(b.leadId, 40);
   if (!leadId || !/^[0-9a-f-]{36}$/i.test(leadId)) return json({ error: "lead" }, 400);
   const provider = getProvider();
@@ -39,18 +44,22 @@ export async function POST(req: Request) {
   try {
     const lead = await selectOne<{ id: string; email: string; name: string | null; fbc: string | null; fbp: string | null }>("web_leads", eq("id", leadId), "id,email,name,fbc,fbp");
     if (!lead) return json({ error: "lead" }, 404);
+    if (!o.includesEbook && !testReq && !(await hasPaidGuide(lead.id))) return json({ error: "plan" }, 400);
     await cancelPrevious(b.replace, lead.id);
     const token = newAccessToken();
+    const isTest = provider.test || plan.id === TEST_PLAN.id || testReq;
     const purchase = await insert<{ id: string }>("web_purchases", {
       lead_id: lead.id,
       email: lead.email,
       plan: plan.id,
+      includes_ebook: o.includesEbook,
       period_months: plan.periodMonths,
-      amount_cents: plan.priceCents,
+      amount_cents: o.amountCents,
       currency: plan.currency,
       provider: provider.id,
       status: "pending",
-      test: provider.test || plan.id === TEST_PLAN.id,
+      // the script's header (scripts/w2a-test-checkout.sh) marks every purchase it makes as test: no Meta Purchase, 24 h code
+      test: isTest,
       access_token: token,
       fbc: match(b.fbc, FBC_RE) ?? lead.fbc,
       fbp: match(b.fbp, FBP_RE) ?? lead.fbp,
@@ -65,6 +74,8 @@ export async function POST(req: Request) {
         purchaseId: purchase.id,
         accessToken: token,
         plan,
+        amountCents: o.amountCents,
+        description: o.description,
         email: lead.email,
         name: lead.name ?? undefined,
         successUrl: `${origin}/quiz/sucesso?pid=${purchase.id}&t=${token}`,
@@ -82,11 +93,17 @@ export async function POST(req: Request) {
       throw e;
     }
     if (action.providerRef) await update("web_purchases", eq("id", purchase.id), { provider_ref: action.providerRef });
-    return json({ purchaseId: purchase.id, token, test: provider.test, action });
+    return json({ purchaseId: purchase.id, token, test: isTest, action });
   } catch (e) {
     console.error("[w2a/checkout]", e);
     return json({ error: "server" }, 500);
   }
+}
+
+/** The lead already bought the guide (paid): the app can then be bought alone. */
+async function hasPaidGuide(leadId: string) {
+  const rows = await select<{ id: string }>("web_purchases", `select=id&${eq("lead_id", leadId)}&includes_ebook=is.true&status=eq.paid&limit=1`);
+  return rows.length > 0;
 }
 
 /** The hidden R$ 5 test plan needs the header `x-w2a-test` = ASAAS_WEBHOOK_TOKEN. */

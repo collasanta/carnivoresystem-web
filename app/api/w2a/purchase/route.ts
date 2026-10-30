@@ -1,6 +1,6 @@
 import { providerById } from "@/lib/web2app/payments";
 import { eq, selectOne } from "@/lib/web2app/server/db";
-import { fulfillPurchase, markPurchase, publicPurchase, type PurchaseRow } from "@/lib/web2app/server/fulfill";
+import { fulfillPurchase, linkedPurchase, markPurchase, publicPurchase, type PurchaseRow } from "@/lib/web2app/server/fulfill";
 import { json, originOf } from "@/lib/web2app/server/http";
 
 /**
@@ -8,7 +8,8 @@ import { json, originOf } from "@/lib/web2app/server/http";
  * it. While unpaid (pending, or failed / canceled that may still get paid on the gateway) and with `&check=1` (the pages
  * send it every ~15 s, not on every poll: gateway rate limits), asks the gateway directly when the provider supports it
  * (a late webhook never blocks the code). `reason` tells the page
- * why an unpaid purchase stopped (pix_expired | card_refused | canceled).
+ * why an unpaid purchase stopped (pix_expired | card_refused | canceled). `guide` (app plan) / `app` (ebook) = the other
+ * paid purchase of the same lead, so the guide page can skip the upsell and the app page can link the guide.
  */
 export async function GET(req: Request) {
   const q = new URL(req.url).searchParams;
@@ -27,7 +28,7 @@ export async function GET(req: Request) {
         p = (await selectOne<PurchaseRow>("web_purchases", eq("id", pid))) ?? p;
       }
     }
-    return json({ purchase: publicPurchase(p) });
+    return json({ purchase: publicPurchase(p, await linkedPurchase(p)) });
   } catch (e) {
     console.error("[w2a/purchase]", e);
     return json({ error: "server" }, 500);

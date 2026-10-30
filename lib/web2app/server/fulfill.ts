@@ -1,8 +1,9 @@
 import { randomBytes, randomInt } from "node:crypto";
-import { eq, selectOne, update } from "./db";
+import { eq, select, selectOne, update } from "./db";
 import { revokePurchase } from "./revoke";
 import { sendPurchase } from "./capi";
-import { sendCodeEmail } from "./email";
+import { guideUrl, sendCodeEmail, sendGuideEmail } from "./email";
+import { isGuide } from "../plans";
 import { captureServer } from "./posthog";
 import type { PurchaseStatus } from "../payments/types";
 
@@ -11,7 +12,10 @@ export type PurchaseRow = {
   lead_id: string | null;
   platform: "ios" | "android" | "desktop" | null;
   email: string;
+  /** app plan, 'test', or 'ebook' (the guide alone) */
   plan: string;
+  /** the R$ 5 guide is part of this purchase (every checkout since 2026-10-29 except the app-only follow-up offer) */
+  includes_ebook: boolean;
   period_months: number | null;
   amount_cents: number;
   currency: string;
@@ -48,9 +52,10 @@ export const newAccessToken = () => randomBytes(24).toString("base64url");
 
 /**
  * The single place a purchase becomes paid. Idempotent: webhooks retry, status polls race them, and both land here.
- *  1. pending → paid with a fresh redemption code (conditional update: only the first caller wins)
- *  2. Meta CAPI Purchase (event_id w2a_<id>), once
- *  3. the code e-mail, once
+ *  1. pending → paid with a fresh redemption code (conditional update: only the first caller wins). The guide alone
+ *     (plan 'ebook') gets NO code: it never unlocks the app.
+ *  2. Meta CAPI Purchase (event_id w2a_<id>, value = the order total), once
+ *  3. one e-mail, once: the code e-mail (with the guide link when the guide is included), or the guide e-mail
  */
 export async function fulfillPurchase(purchaseId: string, opts: { providerRef?: string; providerStatus?: string; origin: string }): Promise<PurchaseRow | null> {
   let p = await selectOne<PurchaseRow>("web_purchases", eq("id", purchaseId));
@@ -67,7 +72,7 @@ export async function fulfillPurchase(purchaseId: string, opts: { providerRef?: 
         won = (await update<PurchaseRow>("web_purchases", `${eq("id", id)}&status=neq.paid`, {
           status: "paid",
           paid_at: new Date().toISOString(),
-          code: newCode(),
+          ...(isGuide(p.plan) ? {} : { code: newCode() }),
           ...(opts.providerRef ? { provider_ref: opts.providerRef } : {}),
           ...(opts.providerStatus ? { provider_status: opts.providerStatus } : {}),
         })).length > 0;
@@ -79,7 +84,7 @@ export async function fulfillPurchase(purchaseId: string, opts: { providerRef?: 
     p = (await selectOne<PurchaseRow>("web_purchases", eq("id", purchaseId)))!;
   }
   // only the caller that flipped it to paid reports it, so webhook retries and polls don't double count
-  if (won) await captureServer(p.lead_id ?? p.id, "w2a_paid", { plan: p.plan, value: p.amount_cents / 100, currency: p.currency, test: p.test, purchase_id: p.id, platform: p.platform });
+  if (won) await captureServer(p.lead_id ?? p.id, "w2a_paid", { plan: p.plan, includes_ebook: !!p.includes_ebook, includes_app: !isGuide(p.plan), value: p.amount_cents / 100, currency: p.currency, test: p.test, purchase_id: p.id, platform: p.platform });
 
   if (p.capi_status == null) {
     const r = await sendPurchase({
@@ -100,12 +105,24 @@ export async function fulfillPurchase(purchaseId: string, opts: { providerRef?: 
     await update("web_purchases", eq("id", p.id), { capi_status: r.status, ...(r.status === 200 ? { capi_sent_at: new Date().toISOString() } : {}) }).catch(() => {});
   }
 
-  if (!p.email_sent_at && p.code) {
+  if (!p.email_sent_at && (p.code || isGuide(p.plan))) {
     const lead = p.lead_id ? await selectOne<{ name: string | null }>("web_leads", eq("id", p.lead_id), "name").catch(() => null) : null;
-    const r = await sendCodeEmail({ to: p.email, code: p.code, plan: p.plan, amountCents: p.amount_cents, name: lead?.name, origin: opts.origin, test: p.test }).catch((e) => ({ ok: false, error: String(e) }));
+    const r = await sendPurchaseEmail(p, { name: lead?.name, origin: opts.origin }).catch((e) => ({ ok: false, error: String(e) }));
     if (r.ok) await update("web_purchases", eq("id", p.id), { email_sent_at: new Date().toISOString(), email_count: p.email_count + 1 }).catch(() => {});
   }
   return (await selectOne<PurchaseRow>("web_purchases", eq("id", purchaseId))) ?? p;
+}
+
+/**
+ * The purchase e-mail: guide alone → the guide e-mail (download link); app plan → the code e-mail, which also carries the
+ * guide link when the guide is included. `to` overrides the address (typo fixed on the success page).
+ */
+export function sendPurchaseEmail(p: PurchaseRow, o: { name?: string | null; origin: string; to?: string }) {
+  const to = o.to ?? p.email;
+  if (isGuide(p.plan)) return sendGuideEmail({ to, pid: p.id, token: p.access_token, amountCents: p.amount_cents, name: o.name, origin: o.origin, test: p.test });
+  if (!p.code) return Promise.resolve({ ok: false, error: "no_code" });
+  const guide = p.includes_ebook ? guideUrl(o.origin, p.id, p.access_token) : null;
+  return sendCodeEmail({ to, code: p.code, plan: p.plan, amountCents: p.amount_cents, name: o.name, origin: o.origin, test: p.test, guideUrl: guide });
 }
 
 /**
@@ -122,7 +139,8 @@ export async function markPurchase(purchaseId: string, status: PurchaseStatus, p
     ...(providerStatus ? { provider_status: providerStatus } : {}),
     ...(status === "refunded" ? { refunded_at: new Date().toISOString() } : {}),
   });
-  if (status === "refunded" && rows.length) {
+  // the guide alone has nothing to revoke: it never had a code, nobody redeemed it (its download link stops working)
+  if (status === "refunded" && rows.length && !isGuide(rows[0].plan)) {
     const report = await revokePurchase(purchaseId);
     if (report.length) console.info("[w2a/refund]", purchaseId, JSON.stringify(report));
   } else if (!rows.length && providerStatus) {
@@ -138,7 +156,43 @@ export function failureReason(p: Pick<PurchaseRow, "status" | "provider_status">
   return null;
 }
 
+type Ref = { id: string; token: string };
+
+/**
+ * The other PAID purchase of the same lead that the buyer's pages need (same browser owner: the lead is theirs):
+ *  - guide alone: the newest paid app purchase (the follow-up offer then becomes "ver o seu código");
+ *  - app plan without the guide (bought from that follow-up offer): the paid guide, so its page links the download.
+ * An app plan that includes the guide needs nothing: the guide is its own.
+ */
+export async function linkedPurchase(p: PurchaseRow): Promise<Ref | null> {
+  if (!p.lead_id || (!isGuide(p.plan) && p.includes_ebook)) return null;
+  const filter = isGuide(p.plan) ? "plan=neq.ebook" : "includes_ebook=is.true";
+  const rows = await select<{ id: string; access_token: string }>("web_purchases", `select=id,access_token&${eq("lead_id", p.lead_id)}&${filter}&status=eq.paid&order=paid_at.desc&limit=1`).catch(() => []);
+  return rows[0] ? { id: rows[0].id, token: rows[0].access_token } : null;
+}
+
 /** Public view of a purchase for the browser that owns it (access token checked by the caller). */
-export function publicPurchase(p: PurchaseRow) {
-  return { id: p.id, status: p.status, plan: p.plan, amountCents: p.amount_cents, currency: p.currency, code: p.status === "paid" ? p.code : null, test: p.test, email: p.email, emailSent: !!p.email_sent_at, provider: p.provider, reason: failureReason(p) };
+export function publicPurchase(p: PurchaseRow, linked?: Ref | null) {
+  const guideOnly = isGuide(p.plan);
+  const paid = p.status === "paid";
+  return {
+    id: p.id,
+    status: p.status,
+    plan: p.plan,
+    /** an app plan is in it (a redemption code once paid) */
+    includesApp: !guideOnly,
+    includesEbook: !!p.includes_ebook,
+    amountCents: p.amount_cents,
+    currency: p.currency,
+    code: paid && !guideOnly ? p.code : null,
+    test: p.test,
+    email: p.email,
+    emailSent: !!p.email_sent_at,
+    provider: p.provider,
+    reason: failureReason(p),
+    /** where the guide downloads from: this purchase when it includes it, else the lead's paid guide purchase */
+    guide: p.includes_ebook ? { id: p.id, token: p.access_token } : !guideOnly && linked ? linked : null,
+    /** guide alone: the lead's paid app purchase (the follow-up offer was taken) */
+    app: guideOnly && linked ? linked : null,
+  };
 }

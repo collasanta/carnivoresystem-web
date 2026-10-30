@@ -32,8 +32,14 @@ export type FunnelState = {
   leadId?: string;
   /** e-mail step opt-in, resent when the lead is updated after the pledge */
   marketingOk?: boolean;
+  /** the app plan picked in the offer's bump (or in the follow-up offer) */
   plan?: PlanId;
-  purchase?: { id: string; token: string; plan: PlanId };
+  /** the offer's "Adicionar o app LeoDiet" bump; undefined = never touched (pre-checked) */
+  bump?: boolean;
+  /** the latest checkout: `plan` = app plan or 'ebook' (guide alone), `includesEbook` = the guide is in it */
+  purchase?: { id: string; token: string; plan: PlanId; includesEbook?: boolean };
+  /** the paid guide-alone purchase (set on its success page): the follow-up app offer's retry pages go back to it */
+  guide?: { id: string; token: string };
 };
 
 const KEY = "leo_w2a";

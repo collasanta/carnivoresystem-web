@@ -11,9 +11,11 @@ import { pixelEnabled } from "./pixel";
  *
  * Funnel events (filter recordings by them):
  *   w2a_quiz_start → w2a_quiz_step {step, index} → w2a_quiz_complete → w2a_plan_view → w2a_lead
- *   → w2a_paywall_view → w2a_plan_selected / w2a_method_selected → w2a_checkout_started {plan, method, value}
+ *   → w2a_paywall_view {bump, plan} → w2a_bump_toggled {on} / w2a_bump_plan_selected {plan} / w2a_method_selected
+ *   → w2a_checkout_started {plan, includes_app, includes_ebook, value, method}
  *   → w2a_checkout_error {reason} | w2a_pix_shown → w2a_pix_copied | w2a_card_opened
- *   → w2a_pix_expired | w2a_card_refused | w2a_purchase (success page) → w2a_store_click {store}
+ *   → w2a_pix_expired | w2a_card_refused | w2a_purchase (success page) → w2a_ebook_download {source} / w2a_store_click {store}
+ *   guide alone: w2a_upsell_view → w2a_upsell_plan_selected / w2a_upsell_declined / w2a_upsell_checkout_started
  * The server also sends w2a_paid (lib/web2app/server/fulfill.ts) with the lead id as distinct id, so a Pix paid
  * after the buyer closed the tab still lands on their person.
  */

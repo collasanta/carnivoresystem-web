@@ -3,9 +3,9 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { capture } from "@/lib/web2app/analytics";
-import { brl, planById } from "@/lib/web2app/plans";
+import { brl, order } from "@/lib/web2app/plans";
 import { useFunnel } from "@/lib/web2app/state";
-import { checkoutKey } from "./paywall";
+import { checkoutKey, retryUrl } from "./pay";
 import { Card, Cta, Page, Title, TopBar } from "./ui";
 
 /**
@@ -15,7 +15,7 @@ import { Card, Cta, Page, Title, TopBar } from "./ui";
  *        in a new tab and polls here.
  * Polling: GET /api/w2a/purchase every 3 s; every 5th call adds check=1 so the server asks the gateway too.
  */
-type Purchase = { id: string; status: string; plan: string; amountCents: number; reason: "pix_expired" | "card_refused" | "canceled" | null };
+type Purchase = { id: string; status: string; plan: string; amountCents: number; reason: "pix_expired" | "card_refused" | "canceled" | null; includesApp?: boolean; includesEbook?: boolean; guide?: { id: string; token: string } | null };
 type PixAction = { kind: "pix"; qrCodeBase64?: string; copyPaste: string; expiresAt?: string };
 type CardAction = { kind: "redirect"; url: string };
 
@@ -56,13 +56,13 @@ function usePurchasePoll(pid: string, t: string, active: boolean) {
   return p;
 }
 
-function Summary({ planId }: { planId?: string }) {
-  const plan = planById(planId ?? "");
-  if (!plan) return null;
+function Summary({ planId, withEbook }: { planId?: string; withEbook: boolean }) {
+  const o = order(planId ?? "", withEbook);
+  if (!o) return null;
   return (
     <div className="mb-4 flex items-center justify-between text-[15px]">
-      <span className="text-mute">Plano {plan.title}</span>
-      <b>{brl(plan.priceCents)}</b>
+      <span className="text-mute">{o.label}</span>
+      <b>{brl(o.amountCents)}</b>
     </div>
   );
 }
@@ -91,9 +91,12 @@ export function GatewayCheckout() {
 
   if (!ready) return <Page><TopBar /></Page>;
   const planId = p?.plan ?? state.purchase?.plan;
+  const withEbook = p?.includesEbook ?? state.purchase?.includesEbook ?? planId === "ebook";
+  // the guide retries on /quiz/oferta, an upsell app plan on the guide's success page (upsell open)
+  const back = retryUrl(planId, withEbook, undefined, p?.guide ?? state.guide);
   const retry = (method: "pix" | "card") => {
-    capture("w2a_payment_retry", { method });
-    router.push(`/quiz/oferta?m=${method}`);
+    capture("w2a_payment_retry", { method, plan: planId });
+    router.push(retryUrl(planId, withEbook, method, p?.guide ?? state.guide));
   };
 
   if (p?.status === "refunded")
@@ -101,16 +104,16 @@ export function GatewayCheckout() {
       <Page>
         <TopBar />
         <Title sub="Se tiver dúvidas, escreva para leo@leodiet.com.">Essa compra foi reembolsada</Title>
-        <Cta onClick={() => retry("pix")}>Voltar aos planos</Cta>
+        <Cta onClick={() => router.push(back)}>Voltar</Cta>
       </Page>
     );
 
   if (m === "pix" && (expired || p?.reason === "pix_expired" || p?.status === "canceled"))
     return (
       <Page>
-        <TopBar onBack={() => router.push("/quiz/oferta")} />
+        <TopBar onBack={() => router.push(back)} />
         <div className="mx-auto mt-10 flex size-16 items-center justify-center rounded-full bg-tint text-[30px]" aria-hidden="true">⏱️</div>
-        <Title sub="Gere um novo Pix para continuar. Se você já pagou este, fique tranquilo: assim que o banco confirmar, o código chega no seu e-mail.">
+        <Title sub={`Gere um novo Pix para continuar. Se você já pagou este, fique tranquilo: assim que o banco confirmar, ${planId === "ebook" ? "o guia" : "o código"} chega no seu e-mail.`}>
           Este Pix expirou
         </Title>
         <Cta onClick={() => retry("pix")}>Gerar novo Pix</Cta>
@@ -120,7 +123,7 @@ export function GatewayCheckout() {
   if (p?.status === "failed" || (m === "card" && p?.status === "canceled"))
     return (
       <Page>
-        <TopBar onBack={() => router.push("/quiz/oferta")} />
+        <TopBar onBack={() => router.push(back)} />
         <div className="mx-auto mt-10 flex size-16 items-center justify-center rounded-full bg-tint text-[30px]" aria-hidden="true">⚠️</div>
         <Title sub="Nenhum valor foi cobrado. Confira os dados do cartão, tente outro cartão ou pague com Pix, que é aprovado na hora.">
           O cartão não foi aprovado
@@ -134,10 +137,10 @@ export function GatewayCheckout() {
       </Page>
     );
 
-  return m === "pix" ? <Pix pid={pid} planId={planId} onExpire={expire} /> : <CardWait pid={pid} planId={planId} />;
+  return m === "pix" ? <Pix pid={pid} planId={planId} withEbook={withEbook} onExpire={expire} back={back} retryPix={retryUrl(planId, withEbook, "pix", p?.guide ?? state.guide)} /> : <CardWait pid={pid} planId={planId} withEbook={withEbook} back={back} />;
 }
 
-function Pix({ pid, planId, onExpire }: { pid: string; planId?: string; onExpire: () => void }) {
+function Pix({ pid, planId, withEbook, onExpire, back, retryPix }: { pid: string; planId?: string; withEbook: boolean; onExpire: () => void; back: string; retryPix: string }) {
   const router = useRouter();
   const [a] = useState(() => readAction<PixAction>(pid));
   const [left, setLeft] = useState<number | null>(null);
@@ -161,9 +164,9 @@ function Pix({ pid, planId, onExpire }: { pid: string; planId?: string; onExpire
   if (!a)
     return (
       <Page>
-        <TopBar onBack={() => router.push("/quiz/oferta")} />
-        <Title sub="Se você já pagou, o código chega no seu e-mail assim que o banco confirmar.">Este Pix não está mais nesta aba</Title>
-        <Cta onClick={() => router.push("/quiz/oferta?m=pix")}>Gerar novo Pix</Cta>
+        <TopBar onBack={() => router.push(back)} />
+        <Title sub={`Se você já pagou, ${planId === "ebook" ? "o guia" : "o código"} chega no seu e-mail assim que o banco confirmar.`}>Este Pix não está mais nesta aba</Title>
+        <Cta onClick={() => router.push(retryPix)}>Gerar novo Pix</Cta>
       </Page>
     );
 
@@ -180,12 +183,12 @@ function Pix({ pid, planId, onExpire }: { pid: string; planId?: string; onExpire
   const mm = left != null ? `${Math.floor(left / 60)}:${String(left % 60).padStart(2, "0")}` : null;
   return (
     <Page>
-      <TopBar onBack={() => router.push("/quiz/oferta")} />
+      <TopBar onBack={() => router.push(back)} />
       <Title sub="Abra o app do seu banco, escolha Pix › Pix Copia e Cola (ou ler QR code) e confirme. O recebedor aparece como Victor Henrique Collasanta (Leo). Esta tela avança sozinha quando o pagamento for aprovado.">
         Pague com Pix
       </Title>
       <Card>
-        <Summary planId={planId} />
+        <Summary planId={planId} withEbook={withEbook} />
         {a.qrCodeBase64 && (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={`data:image/png;base64,${a.qrCodeBase64}`} alt="QR code do Pix" className="mx-auto size-56 rounded-xl border border-line bg-white p-2" />
@@ -210,24 +213,24 @@ function Pix({ pid, planId, onExpire }: { pid: string; planId?: string; onExpire
   );
 }
 
-function CardWait({ pid, planId }: { pid: string; planId?: string }) {
+function CardWait({ pid, planId, withEbook, back }: { pid: string; planId?: string; withEbook: boolean; back: string }) {
   const router = useRouter();
   const [a] = useState(() => readAction<CardAction>(pid));
   const [opened, setOpened] = useState(false);
   if (!a)
     return (
       <Page>
-        <TopBar onBack={() => router.push("/quiz/oferta")} />
-        <Title sub="Se você já pagou, o código chega no seu e-mail.">Pagamento não encontrado nesta aba</Title>
-        <Cta onClick={() => router.push("/quiz/oferta?m=card")}>Voltar aos planos</Cta>
+        <TopBar onBack={() => router.push(back)} />
+        <Title sub={`Se você já pagou, ${planId === "ebook" ? "o guia" : "o código"} chega no seu e-mail.`}>Pagamento não encontrado nesta aba</Title>
+        <Cta onClick={() => router.push(back)}>Voltar</Cta>
       </Page>
     );
   return (
     <Page>
-      <TopBar onBack={() => router.push("/quiz/oferta")} />
+      <TopBar onBack={() => router.push(back)} />
       <Title sub="O pagamento com cartão é feito no ambiente seguro do Asaas, em outra aba. Nós nunca vemos os dados do seu cartão.">Pagar com cartão</Title>
       <Card>
-        <Summary planId={planId} />
+        <Summary planId={planId} withEbook={withEbook} />
         <a
           href={a.url}
           target="_blank"
