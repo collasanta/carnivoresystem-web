@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { MILESTONES, QUIZ_VERSION, STEPS, canContinue, type Answers, type Step } from "@/lib/web2app/quiz";
 import { bmiOf, fmtKg } from "@/lib/web2app/projection";
+import { capture } from "@/lib/web2app/analytics";
 import { once, track, trackCustom } from "@/lib/web2app/pixel";
 import { useFunnel } from "@/lib/web2app/state";
 import { Card, Cta, Disclaimer, Option, Page, Title, TopBar } from "./ui";
@@ -25,11 +26,15 @@ export function Quiz() {
   useEffect(() => {
     if (!ready) return;
     if (idx === 0) {
-      once("quiz_start", () => track("ViewContent", { content_name: "quiz", content_category: QUIZ_VERSION }));
+      once("quiz_start", () => {
+        track("ViewContent", { content_name: "quiz", content_category: QUIZ_VERSION });
+        capture("w2a_quiz_start", { quiz: QUIZ_VERSION });
+      });
       if (!state.startedAt) update({ startedAt: Date.now() });
     }
     const m = MILESTONES[step.id];
     if (m) once(`m_${m}`, () => trackCustom(m, { quiz: QUIZ_VERSION }));
+    capture(step.kind === "loading" ? "w2a_quiz_complete" : "w2a_quiz_step", { step: step.id, index: idx, quiz: QUIZ_VERSION });
     window.scrollTo(0, 0);
   }, [ready, idx]); // eslint-disable-line react-hooks/exhaustive-deps
 

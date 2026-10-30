@@ -6,6 +6,7 @@ import QRCode from "qrcode";
 import { useDevice } from "@/lib/web2app/use-device";
 import { activationUrl, appStoreUrl, deepLink, formatCode, playStoreUrl } from "@/lib/web2app/links";
 import { brl, planById } from "@/lib/web2app/plans";
+import { capture } from "@/lib/web2app/analytics";
 import { once, track } from "@/lib/web2app/pixel";
 import { useFunnel } from "@/lib/web2app/state";
 import { Card, Cta, Page, StoreButtons, Title, TopBar } from "./ui";
@@ -70,6 +71,7 @@ export function Success() {
   // Purchase pixel: once per purchase. Test purchases (mock gateway) only when the pixel test flag is on.
   useEffect(() => {
     if (!p || p.status !== "paid") return;
+    once(`ph_purchase_${p.id}`, () => capture("w2a_purchase", { plan: p.plan, value: p.amountCents / 100, test: p.test }));
     let testPixel = false;
     try {
       testPixel = sessionStorage.getItem("w2a_pixel") === "1";
@@ -192,7 +194,7 @@ export function Activation({ code, purchase, pid, token }: { code: string; purch
                 ? "O LeoDiet é um app para iPhone e Android. Pelo QR code acima é mais rápido; ou procure “LeoDiet” na loja do celular."
                 : "No Android, instalando por este botão o app já ativa sozinho."}
           </p>
-          {device !== "desktop" && <StoreButtons appStore={device === "android" ? undefined : appStoreUrl()} playStore={device === "ios" ? undefined : playStoreUrl(code)} />}
+          {device !== "desktop" && <StoreButtons appStore={device === "android" ? undefined : appStoreUrl()} playStore={device === "ios" ? undefined : playStoreUrl(code)} onClick={(store) => capture("w2a_store_click", { store, device })} />}
         </li>
         <li>
           <h2 className="text-[16px] font-extrabold">2. Ative o seu acesso</h2>

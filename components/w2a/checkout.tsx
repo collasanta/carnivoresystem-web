@@ -2,6 +2,7 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { capture } from "@/lib/web2app/analytics";
 import { brl, planById } from "@/lib/web2app/plans";
 import { useFunnel } from "@/lib/web2app/state";
 import { checkoutKey } from "./paywall";
@@ -80,13 +81,20 @@ export function GatewayCheckout() {
   useEffect(() => {
     if (ready && (!pid || !t)) router.replace("/quiz/oferta");
   }, [ready, pid, t, router]);
+  const outcome = p?.status === "failed" || (m === "card" && p?.status === "canceled") ? "card_refused" : m === "pix" && (expired || p?.reason === "pix_expired" || p?.status === "canceled") ? "pix_expired" : null;
+  useEffect(() => {
+    if (outcome) capture(`w2a_${outcome}`, { plan: p?.plan });
+  }, [outcome]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (p?.status === "paid") router.replace(`/quiz/sucesso?pid=${pid}&t=${t}`);
   }, [p?.status, pid, t, router]);
 
   if (!ready) return <Page><TopBar /></Page>;
   const planId = p?.plan ?? state.purchase?.plan;
-  const retry = (method: "pix" | "card") => router.push(`/quiz/oferta?m=${method}`);
+  const retry = (method: "pix" | "card") => {
+    capture("w2a_payment_retry", { method });
+    router.push(`/quiz/oferta?m=${method}`);
+  };
 
   if (p?.status === "refunded")
     return (
@@ -135,6 +143,9 @@ function Pix({ pid, planId, onExpire }: { pid: string; planId?: string; onExpire
   const [left, setLeft] = useState<number | null>(null);
   const [copied, setCopied] = useState(false);
   useEffect(() => {
+    capture(a ? "w2a_pix_shown" : "w2a_pix_missing", { plan: planId });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
     if (!a?.expiresAt) return;
     const end = Date.parse(a.expiresAt);
     const tick = () => {
@@ -158,6 +169,7 @@ function Pix({ pid, planId, onExpire }: { pid: string; planId?: string; onExpire
 
   const copy = async () => {
     try {
+      capture("w2a_pix_copied", { plan: planId });
       await navigator.clipboard.writeText(a.copyPaste);
       setCopied(true);
       setTimeout(() => setCopied(false), 2500);
@@ -220,7 +232,10 @@ function CardWait({ pid, planId }: { pid: string; planId?: string }) {
           href={a.url}
           target="_blank"
           rel="noopener noreferrer"
-          onClick={() => setOpened(true)}
+          onClick={() => {
+            setOpened(true);
+            capture("w2a_card_opened", { plan: planId });
+          }}
           className="flex h-14 w-full items-center justify-center rounded-2xl bg-cta text-[16px] font-bold text-white shadow-[0_10px_30px_rgba(37,30,23,0.25)]"
         >
           {opened ? "Abrir o pagamento de novo" : "Abrir pagamento seguro"}

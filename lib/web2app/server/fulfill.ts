@@ -3,11 +3,13 @@ import { eq, selectOne, update } from "./db";
 import { revokePurchase } from "./revoke";
 import { sendPurchase } from "./capi";
 import { sendCodeEmail } from "./email";
+import { captureServer } from "./posthog";
 import type { PurchaseStatus } from "../payments/types";
 
 export type PurchaseRow = {
   id: string;
   lead_id: string | null;
+  platform: "ios" | "android" | "desktop" | null;
   email: string;
   plan: string;
   period_months: number | null;
@@ -57,17 +59,18 @@ export async function fulfillPurchase(purchaseId: string, opts: { providerRef?: 
   // invoice); only a refund is final
   if (p.status === "refunded") return p;
 
+  let won = false;
   if (p.status !== "paid") {
     const id = p.id;
     for (let attempt = 0; attempt < 3; attempt++) {
       try {
-        await update<PurchaseRow>("web_purchases", `${eq("id", id)}&status=neq.paid`, {
+        won = (await update<PurchaseRow>("web_purchases", `${eq("id", id)}&status=neq.paid`, {
           status: "paid",
           paid_at: new Date().toISOString(),
           code: newCode(),
           ...(opts.providerRef ? { provider_ref: opts.providerRef } : {}),
           ...(opts.providerStatus ? { provider_status: opts.providerStatus } : {}),
-        });
+        })).length > 0;
         break;
       } catch (e) {
         if (!String(e).includes("23505") || attempt === 2) throw e; // code collision → retry with a new code
@@ -75,6 +78,8 @@ export async function fulfillPurchase(purchaseId: string, opts: { providerRef?: 
     }
     p = (await selectOne<PurchaseRow>("web_purchases", eq("id", purchaseId)))!;
   }
+  // only the caller that flipped it to paid reports it, so webhook retries and polls don't double count
+  if (won) await captureServer(p.lead_id ?? p.id, "w2a_paid", { plan: p.plan, value: p.amount_cents / 100, currency: p.currency, test: p.test, purchase_id: p.id, platform: p.platform });
 
   if (p.capi_status == null) {
     const r = await sendPurchase({

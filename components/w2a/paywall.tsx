@@ -9,6 +9,7 @@ import { PLANS, brl, perMonth, planById, type PlanId } from "@/lib/web2app/plans
 import type { Device } from "@/lib/web2app/device";
 import { useDevice } from "@/lib/web2app/use-device";
 import { fmtDate, fmtKg, project } from "@/lib/web2app/projection";
+import { capture } from "@/lib/web2app/analytics";
 import { track } from "@/lib/web2app/pixel";
 import { metaCookies, useFunnel } from "@/lib/web2app/state";
 import { Card, Cta, Disclaimer, Page, Title, TopBar } from "./ui";
@@ -96,6 +97,7 @@ export function Paywall({ provider }: { provider: ProviderInfo }) {
       return;
     }
     track("InitiateCheckout", { content_name: "web_paywall", currency: "BRL", num_items: 1 });
+    capture("w2a_paywall_view", { device: device ?? undefined });
   }, [ready]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!ready || !state.leadId) return <Page><TopBar /></Page>;
@@ -106,6 +108,7 @@ export function Paywall({ provider }: { provider: ProviderInfo }) {
     if (provider?.needsCpf && !isValidCpf(cpf)) {
       setCpfError(true);
       setError("Confira o seu CPF.");
+      capture("w2a_checkout_error", { reason: "cpf_invalid_local", plan: selected, method });
       document.getElementById("w2a-cpf")?.focus();
       return;
     }
@@ -113,6 +116,7 @@ export function Paywall({ provider }: { provider: ProviderInfo }) {
     setError(null);
     update({ plan: selected });
     track("AddPaymentInfo", { content_name: `web_${selected}`, value: plan.priceCents / 100, currency: plan.currency });
+    capture("w2a_checkout_started", { plan: selected, method: methods.length ? method : undefined, value: plan.priceCents / 100 });
     try {
       const res = await fetch("/api/w2a/checkout", {
         method: "POST",
@@ -146,6 +150,7 @@ export function Paywall({ provider }: { provider: ProviderInfo }) {
       window.location.assign(j.action.url);
     } catch (e) {
       const m = String(e);
+      capture("w2a_checkout_error", { reason: m.slice(0, 80), plan: selected, method });
       setError(
         m.includes("payments_unavailable")
           ? "Pagamento indisponível no momento. Tente de novo mais tarde."
@@ -176,7 +181,10 @@ export function Paywall({ provider }: { provider: ProviderInfo }) {
               type="button"
               role="radio"
               aria-checked={on}
-              onClick={() => setSelected(p.id)}
+              onClick={() => {
+                setSelected(p.id);
+                capture("w2a_plan_selected", { plan: p.id });
+              }}
               className={cn(
                 "relative flex w-full items-center gap-3 rounded-2xl border bg-card px-4 py-4 text-left transition-[border-color,box-shadow]",
                 on ? "border-cta shadow-[0_0_0_1.5px_var(--color-cta)]" : "border-line hover:border-linex",
@@ -232,7 +240,10 @@ export function Paywall({ provider }: { provider: ProviderInfo }) {
                   type="button"
                   role="radio"
                   aria-checked={on}
-                  onClick={() => setMethod(m)}
+                  onClick={() => {
+                    setMethod(m);
+                    capture("w2a_method_selected", { method: m });
+                  }}
                   className={cn(
                     "flex h-14 flex-col items-center justify-center rounded-2xl border bg-card text-[15px] font-bold transition-[border-color,box-shadow]",
                     on ? "border-cta shadow-[0_0_0_1.5px_var(--color-cta)]" : "border-line hover:border-linex",

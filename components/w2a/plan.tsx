@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { QUIZ_VERSION, STEPS, label, type Answers } from "@/lib/web2app/quiz";
 import { dailyTargets, fmtDate, fmtKg, project, type Projection } from "@/lib/web2app/projection";
+import { capture, identifyLead } from "@/lib/web2app/analytics";
 import { once, track, trackCustom } from "@/lib/web2app/pixel";
 import { metaCookies, useFunnel, type Attribution } from "@/lib/web2app/state";
 import { Card, Cta, Disclaimer, Page, Title, TopBar } from "./ui";
@@ -27,6 +28,7 @@ export function PlanScreen() {
       return;
     }
     once("plan_view", () => trackCustom("PlanView", { quiz: QUIZ_VERSION }));
+    capture("w2a_plan_view", { quiz: QUIZ_VERSION });
   }, [ready]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!ready || !proj) return <Page><TopBar /></Page>;
@@ -271,6 +273,8 @@ function EmailStep({
       const j = (await res.json()) as { leadId?: string; error?: string };
       if (!res.ok || !j.leadId) throw new Error(j.error ?? "server");
       if (j.leadId !== leadId) track("Lead", { content_name: "quiz_email" }, `lead_${j.leadId}`);
+      identifyLead(j.leadId, email.trim().toLowerCase());
+      capture("w2a_lead", { quiz: QUIZ_VERSION });
       onDone(email.trim().toLowerCase(), j.leadId);
     } catch (err) {
       setError(String(err).includes("email") ? "Confira o seu e-mail." : "Não conseguimos salvar agora. Tente de novo em instantes.");
