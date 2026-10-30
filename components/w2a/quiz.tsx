@@ -62,7 +62,7 @@ export function Quiz() {
       <TopBar progress={progress} onBack={step.kind === "loading" ? undefined : back} />
       <div key={step.id} className="animate-in fade-in slide-in-from-right-3 duration-300">
         {idx === 0 && (
-          <p className="mt-6 text-center text-[11px] font-semibold tracking-[0.16em] text-mute uppercase">Plano carnívoro personalizado · 2 minutos</p>
+          <p className="mt-6 text-center text-[11px] font-semibold tracking-[0.16em] text-mute uppercase">Desafio Carnívoro de 30 dias · 2 minutos</p>
         )}
         <StepView step={step} a={a} set={set} pick={pick} next={next} onDone={() => router.push("/quiz/plano")} />
       </div>
@@ -130,7 +130,7 @@ function StepView({
     case "text":
       return (
         <>
-          <Title sub="Para personalizar o seu plano. É opcional.">{step.title}</Title>
+          <Title sub="Para personalizar o seu desafio. É opcional.">{step.title}</Title>
           <input
             autoFocus
             type="text"
@@ -319,7 +319,7 @@ function Loading({ step, a, onDone }: { step: Extract<Step, { kind: "loading" }>
   const c = 2 * Math.PI * r;
   return (
     <>
-      <Title>{a.name?.trim() ? `${a.name.trim()}, estamos montando o seu plano…` : step.title}</Title>
+      <Title>{a.name?.trim() ? `${a.name.trim()}, estamos montando o seu desafio…` : step.title}</Title>
       <div className="relative mx-auto mt-2 size-[150px]">
         <svg viewBox="0 0 128 128" className="size-full -rotate-90">
           <circle cx="64" cy="64" r={r} fill="none" stroke="var(--color-line)" strokeWidth="10" />

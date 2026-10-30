@@ -7,7 +7,10 @@
 
 /** pt-v2 (2026-10-27): + salt type, symptoms (replaced "energy"), activity aligned with the app's training levels.
  *  The app builds its profile from these answers (leo src/lib/webProfile.ts): keep option ids in sync with it. */
-export const QUIZ_VERSION = "pt-v2";
+/** pt-v3 (2026-10-29): framed as the "Desafio Carnívoro de 30 dias". The "commit" question (7/30/90 days) is gone:
+ *  accepting the challenge sets commit "30"; new keys challengeStart / challengeStartPick / challengeAcceptedAt
+ *  (ignored by the app). Every pt-v2 key and option id is unchanged. */
+export const QUIZ_VERSION = "pt-v3";
 
 export type Answers = {
   goal?: string;
@@ -33,8 +36,14 @@ export type Answers = {
   activity?: string;
   event?: string;
   pace?: "calm" | "steady" | "fast";
+  /** pt-v2 asked it (7 | 30 | 90); pt-v3 sets "30" when the challenge is accepted. App: 7 → 7, else 30. */
   commit?: string;
   name?: string;
+  /** pt-v3: day 1 of the 30-day challenge, local date "YYYY-MM-DD" (set after the e-mail step) */
+  challengeStart?: string;
+  challengeStartPick?: "today" | "tomorrow" | "monday";
+  /** pt-v3: ISO timestamp of the press-and-hold "Eu aceito o desafio" */
+  challengeAcceptedAt?: string;
 };
 
 export type Option = { id: string; label: string; hint?: string; emoji?: string };
@@ -51,7 +60,7 @@ export const STEPS: Step[] = [
   {
     kind: "single", id: "goal", key: "goal",
     title: "Qual é o seu principal objetivo com a carnívora?",
-    sub: "Vamos montar o plano em cima disso.",
+    sub: "Vamos montar o seu desafio de 30 dias em cima disso.",
     options: [
       { id: "lose", label: "Perder peso", emoji: "⚖️" },
       { id: "energy", label: "Ter mais energia e foco", emoji: "⚡" },
@@ -95,7 +104,7 @@ export const STEPS: Step[] = [
   {
     kind: "info", id: "info-salt", variant: "salt",
     title: "A carnívora é simples. O difícil é a primeira semana.",
-    body: "Quando você corta os carboidratos, o corpo elimina mais água e sódio. É por isso que tanta gente sente dor de cabeça, câimbra e cansaço nos primeiros dias e acha que a dieta “não é pra ela”. Acertar o sal e a água desde o primeiro dia é o que o seu plano vai resolver.",
+    body: "Quando você corta os carboidratos, o corpo elimina mais água e sódio. É por isso que tanta gente sente dor de cabeça, câimbra e cansaço nos primeiros dias e acha que a dieta “não é pra ela”. Acertar o sal e a água desde o dia 1 é a primeira coisa que o seu desafio resolve.",
   },
   {
     kind: "number", id: "height", key: "heightCm",
@@ -145,7 +154,7 @@ export const STEPS: Step[] = [
   {
     kind: "info", id: "info-tracking", variant: "tracking",
     title: "Quem registra o dia mantém o hábito por mais tempo",
-    body: "Uma revisão de 22 estudos sobre emagrecimento encontrou associação consistente entre se automonitorar (anotar o que come, o peso, o dia) e melhores resultados. Por isso o seu plano é baseado em marcar o dia, e não em contar caloria.",
+    body: "Uma revisão de 22 estudos sobre emagrecimento encontrou associação consistente entre se automonitorar (anotar o que come, o peso, o dia) e melhores resultados. Por isso o seu desafio é baseado em marcar o dia, e não em contar caloria.",
   },
   {
     kind: "single", id: "eating-now", key: "eatingNow",
@@ -256,17 +265,8 @@ export const STEPS: Step[] = [
   },
   {
     kind: "info", id: "info-method", variant: "method",
-    title: "Como o LeoDiet te mantém na dieta",
+    title: "Como o LeoDiet te leva até o dia 30",
     body: "",
-  },
-  {
-    kind: "single", id: "commit", key: "commit",
-    title: "Por quantos dias você topa seguir o plano?",
-    options: [
-      { id: "7", label: "7 dias, para testar" },
-      { id: "30", label: "30 dias" },
-      { id: "90", label: "90 dias, para mudar de verdade" },
-    ],
   },
   {
     kind: "text", id: "name", key: "name",
@@ -274,8 +274,8 @@ export const STEPS: Step[] = [
   },
   {
     kind: "loading", id: "loading",
-    title: "Montando o seu plano…",
-    lines: ["Analisando suas respostas", "Calculando seu sal e sua água", "Projetando o seu ritmo", "Ajustando aos seus obstáculos"],
+    title: "Montando o seu desafio…",
+    lines: ["Analisando suas respostas", "Calculando seu sal e sua água", "Planejando a semana de adaptação", "Ajustando aos seus obstáculos"],
   },
 ];
 

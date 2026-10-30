@@ -9,6 +9,7 @@ import { PLANS, brl, perMonth, planById, type PlanId } from "@/lib/web2app/plans
 import type { Device } from "@/lib/web2app/device";
 import { useDevice } from "@/lib/web2app/use-device";
 import { fmtDate, fmtKg, project } from "@/lib/web2app/projection";
+import { dayEnd, fmtDayShort, startsWhen } from "@/lib/web2app/challenge";
 import { capture } from "@/lib/web2app/analytics";
 import { track } from "@/lib/web2app/pixel";
 import { metaCookies, useFunnel } from "@/lib/web2app/state";
@@ -23,11 +24,14 @@ import { Card, Cta, Disclaimer, Page, Title, TopBar } from "./ui";
 const INCLUDED = [
   "Sal e água calculados para o seu corpo, com lembretes",
   "Registro do dia em um toque: carnívoro ou saiu da dieta",
-  "Calendário de dias limpos e sequências",
+  "Calendário de dias limpos e sequências, com comemoração aos 30 dias",
   "Humor, sintomas e peso com gráficos",
   "Cards para compartilhar o seu progresso",
   "App para iPhone e Android, em português",
 ];
+
+/** What the plan gives beyond the challenge, from its length (plans.ts stays the source of the price). */
+const access = (months: number | null) => (months === null ? "Desafio + app para sempre" : `Desafio + app por ${months} meses`);
 
 /** The 3 "how it works" steps; the last one names the visitor's store. */
 function steps(device: Device | null): { t: string; d: string }[] {
@@ -47,6 +51,7 @@ function steps(device: Device | null): { t: string; d: string }[] {
 }
 
 const FAQ = [
+  { q: "O que acontece depois dos 30 dias?", a: "O acesso continua pelo tempo do plano: 3 meses, 12 meses ou para sempre. O desafio é o começo; o calendário, o sal e a água e o seu histórico continuam no app." },
   { q: "Como eu acesso depois de pagar?", a: "O LeoDiet é um aplicativo de celular. Você recebe um código na tela e por e-mail, baixa o LeoDiet na App Store ou no Google Play e ativa com o código. No Android ele pode ativar sozinho quando você instala pelo nosso botão." },
   { q: "É assinatura? Vai cobrar de novo?", a: "Não. Os planos daqui são pagamento único: 3 meses, 12 meses ou vitalício. Nada renova sozinho." },
   { q: "E se eu me arrepender?", a: "Você pode pedir o reembolso em até 7 dias após a compra, sem precisar explicar o motivo. É só escrever para leo@leodiet.com." },
@@ -97,7 +102,7 @@ export function Paywall({ provider }: { provider: ProviderInfo }) {
       return;
     }
     track("InitiateCheckout", { content_name: "web_paywall", currency: "BRL", num_items: 1 });
-    capture("w2a_paywall_view", { device: device ?? undefined });
+    capture("w2a_paywall_view", { device: device ?? undefined, accepted: !!state.answers.challengeAcceptedAt });
   }, [ready]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!ready || !state.leadId) return <Page><TopBar /></Page>;
@@ -164,12 +169,24 @@ export function Paywall({ provider }: { provider: ProviderInfo }) {
   };
 
   const name = state.answers.name?.trim();
+  // normal flow: the start date was picked and the pledge accepted on /quiz/plano; a buyer coming back from an
+  // e-mail or an expired Pix may have neither, or a start date already in the past: the paywall works the same
+  const start = state.answers.challengeStart;
+  const when = start ? startsWhen(start) : null;
+  const title = when ? `${name ? `${name}, seu` : "Seu"} desafio começa ${when}` : name ? `${name}, entre no desafio` : "Entre no Desafio Carnívoro de 30 dias";
+  const sub = [
+    start && when ? `Dia 1: ${fmtDayShort(start)} · Dia 30: ${fmtDayShort(dayEnd(start))}.` : null,
+    "Você faz o desafio no app LeoDiet, e o acesso continua depois do dia 30 pelo tempo do plano.",
+  ]
+    .filter(Boolean)
+    .join(" ");
   return (
     <Page>
       <TopBar onBack={() => router.push("/quiz/plano")} />
-      <Title sub={proj && proj.kind === "lose" ? `Meta: ${fmtKg(proj.targetKg)} até ${fmtDate(proj.date)} (estimativa)` : undefined}>
-        {name ? `${name}, seu plano no app LeoDiet` : "Seu plano no app LeoDiet"}
-      </Title>
+      <Title sub={sub}>{title}</Title>
+      {proj && proj.kind === "lose" && (
+        <p className="-mt-3 mb-5 text-center text-[12.5px] text-mute">Meta: {fmtKg(proj.targetKg)} até {fmtDate(proj.date)} (estimativa)</p>
+      )}
 
       <div role="radiogroup" aria-label="Planos" className="flex flex-col gap-3">
         {PLANS.map((p) => {
@@ -196,6 +213,7 @@ export function Paywall({ provider }: { provider: ProviderInfo }) {
               </span>
               <span className="flex-1">
                 <span className="block text-[16px] font-extrabold tracking-[-0.01em]">{p.title}</span>
+                <span className="mt-0.5 block text-[12.5px] font-semibold text-walnut">{access(p.periodMonths)}</span>
                 <span className="mt-0.5 block text-[12px] text-mute">{p.sub}</span>
               </span>
               <span className="text-right">

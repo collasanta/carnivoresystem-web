@@ -30,6 +30,8 @@ export type FunnelState = {
   attribution: Attribution;
   email?: string;
   leadId?: string;
+  /** e-mail step opt-in, resent when the lead is updated after the pledge */
+  marketingOk?: boolean;
   plan?: PlanId;
   purchase?: { id: string; token: string; plan: PlanId };
 };

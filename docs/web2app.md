@@ -11,10 +11,12 @@ Not merged, not live: the webhook still has to be created in the Asaas portal an
 
 ```mermaid
 flowchart TD
-  A[Meta ad<br/>?fbclid&utm_*] --> Q[/quiz<br/>26 steps, QUIZ_VERSION pt-v2, localStorage leo_w2a/]
-  Q -->|ViewContent, QuizQuarter/Half/ThreeQuarters/Complete| P[/quiz/plano<br/>projection chart + daily targets + summary/]
+  A[Meta ad<br/>?fbclid&utm_*] --> Q[/quiz<br/>25 steps, QUIZ_VERSION pt-v3, localStorage leo_w2a/]
+  Q -->|ViewContent, QuizQuarter/Half/ThreeQuarters/Complete| P[/quiz/plano<br/>30-day challenge: day 1 → 30, phases + projection + targets + summary/]
   P --> E[e-mail step]
-  E -->|POST /api/w2a/lead → web_leads<br/>Lead pixel| O[/quiz/oferta<br/>web paywall, plans.ts/]
+  E -->|POST /api/w2a/lead → web_leads<br/>Lead pixel| ST[Quando você começa?<br/>hoje / amanhã / próxima segunda]
+  ST --> PL[pledge: press and hold<br/>Eu aceito o desafio<br/>lead updated with challengeStart]
+  PL --> O[/quiz/oferta<br/>web paywall, plans.ts/]
   O -->|InitiateCheckout, AddPaymentInfo<br/>method + CPF<br/>POST /api/w2a/checkout → web_purchases pending| G{payment provider}
   G -->|mock, local dev: /quiz/pagamento| M[approve / decline buttons<br/>POST /api/w2a/mock-pay]
   G -->|asaas Pix: /quiz/pagamento?m=pix| PX[QR + copia-e-cola<br/>polls /api/w2a/purchase]
@@ -39,6 +41,24 @@ id (anonymous until the user signs in), which doesn't exist when the person pays
 id would force a `Purchases.logIn` and break the anonymous-session design. So the code is the bridge: it attaches the
 purchase to whatever user the app has at that moment (up to 3 users per code → 3 phones / re-installs).
 
+## The 30-day challenge framing (pt-v3, 2026-10-29)
+
+The quiz is sold as the **Desafio Carnívoro de 30 dias**: intro eyebrow, loading ("Montando o seu desafio…"), plan
+screen (day 1 → day 30 dates, estimated weight on day 30 for weight loss, phases semana 1 adaptação / semanas 2–3
+ritmo / semana 4 resultado, then the long-term projection as "E depois do dia 30"). After the e-mail, two commitment
+screens on `/quiz/plano` before any price: **Quando você começa?** (`answers.challengeStart` YYYY-MM-DD local,
+`challengeStartPick` today|tomorrow|monday) and the **pledge** (name, date range, "Eu me comprometo a…" lines from the
+blockers, `HoldButton` in `ui.tsx`: 1.5 s hold, keyboard Space/Enter hold, a quick tap shows "Segure para confirmar",
+assistive-tech click accepts). Accepting sets `challengeAcceptedAt` and `commit: "30"` (the old 7/30/90 question is
+gone) and re-POSTs the lead with the same `leadId` (fire and forget). The paywall title becomes "{nome}, seu desafio
+começa {hoje|amanhã|na segunda, 3 de novembro}" (or "entre no desafio" with no / past start date); each plan shows
+"Desafio + app por N meses / para sempre". `/quiz/oferta` still works without the pledge (buyers coming back from an
+e-mail or an expired Pix). Helpers and copy: `lib/web2app/challenge.ts`. The new answer keys are ignored by the app
+(`webProfile.ts` reads only known keys; nothing checks `quiz_version`).
+
+PostHog: `w2a_challenge_start_view`, `w2a_challenge_start_picked {start}`, `w2a_challenge_pledge_view`,
+`w2a_challenge_accepted {start}`; `w2a_paywall_view` carries `accepted`. Nothing new goes to the pixel.
+
 ## Files
 
 **This repo (carnivoresystem-web)**
@@ -57,6 +77,7 @@ purchase to whatever user the app has at that moment (up to 3 users per code →
 | `components/w2a/*` | UI: `ui.tsx` (building blocks), `quiz.tsx`, `plan.tsx`, `paywall.tsx` (plans, Pix/cartão, CPF), `checkout.tsx` (Pix QR + polling, card wait, expired / refused states), `mock-checkout.tsx`, `success.tsx`, `activate.tsx`. |
 | `lib/web2app/quiz.ts` | **the questions** (`STEPS`), milestones, validation. Bump `QUIZ_VERSION` when you change them. |
 | `lib/web2app/plans.ts` | **prices** (BRL, cents). Edit here; the server re-reads them on checkout (the browser never sets the price). |
+| `lib/web2app/challenge.ts` | 30-day challenge: start options, day 1 → 30 dates, kg on day 30, phases, pledge lines. |
 | `lib/web2app/projection.ts` | weight projection (conservative: 0.5–0.9 %/week, capped 0.9 kg/week, slows at the end, BMI floor 18.5) + daily water/sodium (mirrors the app's `computeTargets`). |
 | `lib/web2app/state.ts` | funnel state in localStorage `leo_w2a` + first-touch attribution (fbclid → fbc, `_fbp`, utm_*). |
 | `lib/web2app/pixel.ts` | Meta Pixel (loads only on `*.leodiet.com`, or anywhere with `?pixel=1`). |
@@ -121,7 +142,8 @@ Mapping (web quiz id → app), source of truth `leo/src/lib/webProfile.ts`:
 | `targetKg` vs `weightKg` (±1 kg), goal muscle | `intake.weightGoal` lose / maintain / gain |
 | `blockers` sweets / weekends / symptoms / consistency, no-results | `intake.struggles` cravings / weekends / symptoms / consistency |
 | `pastDiets` (anything but none) | `intake.triedBefore` |
-| `commit` 7 / 30 / 90 | `intake.commitDays` 7 / 30 / 30 |
+| `commit` 7 / 30 / 90 (pt-v2) · "30" once the challenge is accepted (pt-v3) | `intake.commitDays` 7 / 30 / 30 |
+| `challengeStart`, `challengeStartPick`, `challengeAcceptedAt` (pt-v3) | not read by the app (yet) |
 | — | `intake.source = 'web'` |
 
 `computeTargets` needs training, tenure, salt, weight, sex and symptoms. If any is missing (pt-v1 leads had no salt/symptoms, or no lead at all) the app opens `/onboarding?mode=complete&ask=…` with only those questions, then Today. Quiz ids must stay in sync with the app; bump `QUIZ_VERSION` when they change.

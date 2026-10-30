@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import { initAnalytics } from "@/lib/web2app/analytics";
 import { initPixel } from "@/lib/web2app/pixel";
@@ -140,6 +140,103 @@ export function Cta({
   return (
     <div className="fixed inset-x-0 bottom-0 z-20 bg-gradient-to-t from-cream via-cream to-cream/0 px-4 pt-6 pb-[max(16px,env(safe-area-inset-bottom))]">
       <div className="mx-auto w-full max-w-[448px]">{btn}</div>
+    </div>
+  );
+}
+
+/**
+ * Press-and-hold confirmation, pinned like Cta. Holding (pointer, or Space/Enter on the keyboard) fills the button for
+ * `ms`; releasing early resets it, and a quick tap shows "Segure para confirmar" instead of failing silently. An
+ * activation without a pointer or key hold (screen readers: click with detail 0) confirms right away.
+ */
+export function HoldButton({ children, onConfirm, ms = 1500, doneLabel }: { children: React.ReactNode; onConfirm: () => void; ms?: number; doneLabel?: React.ReactNode }) {
+  const [pct, setPct] = useState(0);
+  const [hint, setHint] = useState(false);
+  const [done, setDone] = useState(false);
+  const t0 = useRef<number | null>(null);
+  const raf = useRef<number | null>(null);
+  const cb = useRef(onConfirm);
+  useEffect(() => {
+    cb.current = onConfirm;
+  });
+  useEffect(() => () => {
+    if (raf.current) cancelAnimationFrame(raf.current);
+  }, []);
+
+  const finish = () => {
+    if (raf.current) cancelAnimationFrame(raf.current);
+    t0.current = null;
+    setPct(100);
+    setDone(true);
+    setHint(false);
+    try {
+      navigator.vibrate?.(30);
+    } catch {
+      /* no vibration */
+    }
+    setTimeout(() => cb.current(), 450);
+  };
+  const tick = (now: number) => {
+    if (t0.current === null) return;
+    const p = Math.min(1, Math.max(0, now - t0.current) / ms);
+    setPct(p * 100);
+    if (p >= 1) finish();
+    else raf.current = requestAnimationFrame(tick);
+  };
+  const start = () => {
+    if (done || t0.current !== null) return;
+    t0.current = performance.now();
+    setHint(false);
+    raf.current = requestAnimationFrame(tick);
+  };
+  const stop = () => {
+    if (done || t0.current === null) return;
+    const held = performance.now() - t0.current;
+    t0.current = null;
+    if (raf.current) cancelAnimationFrame(raf.current);
+    setPct(0);
+    if (held < ms) setHint(true);
+  };
+  const isKey = (e: React.KeyboardEvent) => e.key === " " || e.key === "Enter";
+
+  return (
+    <div className="fixed inset-x-0 bottom-0 z-20 bg-gradient-to-t from-cream via-cream to-cream/0 px-4 pt-6 pb-[max(16px,env(safe-area-inset-bottom))]">
+      <div className="mx-auto w-full max-w-[448px]">
+        <p id="w2a-hold-hint" aria-live="polite" className={cn("mb-2 text-center text-[13px] font-semibold transition-colors", hint ? "text-walnut" : "text-mute")}>
+          {done ? "Desafio aceito!" : hint ? "Segure para confirmar ✋" : "Segure o botão para aceitar"}
+        </p>
+        <button
+          type="button"
+          aria-describedby="w2a-hold-hint"
+          onPointerDown={(e) => {
+            if (e.button !== 0) return;
+            e.currentTarget.setPointerCapture?.(e.pointerId);
+            start();
+          }}
+          onPointerUp={stop}
+          onPointerCancel={stop}
+          onLostPointerCapture={stop}
+          onKeyDown={(e) => {
+            if (!isKey(e)) return;
+            e.preventDefault();
+            if (!e.repeat) start();
+          }}
+          onKeyUp={(e) => {
+            if (!isKey(e)) return;
+            e.preventDefault();
+            stop();
+          }}
+          onClick={(e) => {
+            // assistive tech activation (no pointer, no key hold)
+            if (e.detail === 0 && t0.current === null && !done) finish();
+          }}
+          onContextMenu={(e) => e.preventDefault()}
+          className="relative flex h-14 w-full touch-none items-center justify-center overflow-hidden rounded-2xl bg-cta text-[16px] font-bold text-white shadow-[0_10px_30px_rgba(37,30,23,0.25)] select-none [-webkit-touch-callout:none] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cta"
+        >
+          <span aria-hidden="true" className={cn("absolute inset-y-0 left-0", done ? "bg-good" : "bg-walnut")} style={{ width: `${pct}%` }} />
+          <span className="relative flex items-center gap-2">{done ? (doneLabel ?? children) : children}</span>
+        </button>
+      </div>
     </div>
   );
 }

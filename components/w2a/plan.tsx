@@ -7,18 +7,37 @@ import { dailyTargets, fmtDate, fmtKg, project, type Projection } from "@/lib/we
 import { capture, identifyLead } from "@/lib/web2app/analytics";
 import { once, track, trackCustom } from "@/lib/web2app/pixel";
 import { metaCookies, useFunnel, type Attribution } from "@/lib/web2app/state";
-import { Card, Cta, Disclaimer, Page, Title, TopBar } from "./ui";
+import { PHASES, dayEnd, fmtDayLong, fmtDayShort, isoDay, kgAtDay30, pledgeLines, startOptions, type StartPick } from "@/lib/web2app/challenge";
+import { cn } from "@/lib/utils";
+import { Card, Cta, Disclaimer, HoldButton, Option, Page, Title, TopBar } from "./ui";
 
 /**
- * /quiz/plano — the "your plan is ready" screen (weight projection + answer summary), then the e-mail step.
- * The lead goes to Supabase (POST /api/w2a/lead) with answers, the projection shown and the attribution.
+ * /quiz/plano — "your 30-day challenge is ready" (day 1 → day 30, phases, projection, answer summary), then the
+ * e-mail step, then the commitment: start date ("Quando você começa?") and the pledge (press and hold
+ * "Eu aceito o desafio") → /quiz/oferta. The lead goes to Supabase (POST /api/w2a/lead) with answers, the projection
+ * shown and the attribution; after the pledge it is updated (same leadId) with challengeStart / challengeAcceptedAt.
  */
+type Stage = "plan" | "email" | "start" | "pledge";
+
+function leadBody(a: Answers, proj: Projection, email: string, attr: Attribution, leadId: string | undefined, marketing: boolean | undefined) {
+  return {
+    email,
+    name: a.name?.trim() || null,
+    answers: a,
+    plan: { kind: proj.kind, startKg: proj.startKg, targetKg: proj.targetKg, weeks: proj.weeks, date: proj.date, month1Kg: proj.month1Kg, clamped: proj.clamped },
+    attribution: { ...attr, ...metaCookies(attr) },
+    quizVersion: QUIZ_VERSION,
+    locale: "pt-BR",
+    ...(marketing === undefined ? {} : { marketingOk: marketing }),
+    leadId,
+  };
+}
 export function PlanScreen() {
   const router = useRouter();
   const { state, ready, update } = useFunnel();
   const a = state.answers;
   const proj = useMemo(() => (ready ? project(a) : null), [ready, a]);
-  const [stage, setStage] = useState<"plan" | "email">("plan");
+  const [stage, setStage] = useState<Stage>("plan");
 
   useEffect(() => {
     if (!ready) return;
@@ -42,8 +61,43 @@ export function PlanScreen() {
         leadId={state.leadId}
         attribution={state.attribution}
         onBack={() => setStage("plan")}
-        onDone={(email, leadId) => {
-          update({ email, leadId });
+        onDone={(email, leadId, marketingOk) => {
+          update({ email, leadId, marketingOk });
+          setStage("start");
+        }}
+      />
+    );
+
+  if (stage === "start")
+    return (
+      <StartStep
+        a={a}
+        onBack={() => setStage("email")}
+        onDone={(pick, iso) => {
+          update((s) => ({ answers: { ...s.answers, challengeStart: iso, challengeStartPick: pick } }));
+          capture("w2a_challenge_start_picked", { start: pick, quiz: QUIZ_VERSION });
+          setStage("pledge");
+        }}
+      />
+    );
+
+  if (stage === "pledge")
+    return (
+      <PledgeStep
+        a={a}
+        onBack={() => setStage("start")}
+        onAccept={() => {
+          const answers: Answers = { ...a, commit: "30", challengeAcceptedAt: new Date().toISOString() };
+          update({ answers });
+          capture("w2a_challenge_accepted", { start: a.challengeStartPick, quiz: QUIZ_VERSION });
+          // keep the lead row in sync (start date + acceptance); fire and forget, the paywall doesn't depend on it
+          if (state.email && state.leadId)
+            fetch("/api/w2a/lead", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              keepalive: true,
+              body: JSON.stringify(leadBody(answers, proj, state.email, state.attribution, state.leadId, state.marketingOk)),
+            }).catch(() => {});
           router.push("/quiz/oferta");
         }}
       />
@@ -54,11 +108,14 @@ export function PlanScreen() {
   return (
     <Page>
       <TopBar onBack={() => { update({ step: STEPS.length - 2 }); router.push("/quiz"); }} />
-      <Title sub={proj.kind === "lose" ? "Estimativa com base nas suas respostas, em um ritmo conservador." : undefined}>
-        {name ? `${name}, seu plano está pronto` : "Seu plano está pronto"}
+      <Title sub="Montado com base nas suas respostas. Os números são estimativas, em um ritmo conservador.">
+        {name ? `${name}, seu desafio de 30 dias está pronto` : "Seu desafio de 30 dias está pronto"}
       </Title>
 
-      <Card>
+      <ChallengeCard a={a} proj={proj} />
+
+      <Card className="mt-4">
+        <div className="mb-1 text-[12px] font-semibold tracking-[0.12em] text-mute uppercase">E depois do dia 30</div>
         {proj.kind === "lose" ? (
           <>
             <div className="text-[13px] text-mute">Você pode chegar a</div>
@@ -83,9 +140,7 @@ export function PlanScreen() {
         )}
         <Chart proj={proj} />
         {proj.kind === "lose" && proj.weeks >= 4 && (
-          <p className="mt-3 text-[13px] leading-relaxed text-mute">
-            Primeiro mês: cerca de <b className="text-ink">{fmtKg(Math.round((proj.startKg - proj.month1Kg) * 10) / 10)}</b> a menos. Parte disso costuma ser água nos primeiros dias, e é normal o ritmo diminuir depois.
-          </p>
+          <p className="mt-3 text-[13px] leading-relaxed text-mute">É normal o ritmo diminuir depois do primeiro mês. O desafio é o começo; o app continua com você depois do dia 30.</p>
         )}
         {proj.clamped && <p className="mt-3 text-[13px] leading-relaxed text-mute">Ajustamos o alvo para dentro da faixa saudável para a sua altura.</p>}
       </Card>
@@ -110,7 +165,6 @@ export function PlanScreen() {
           <Row k="Experiência" v={label("tenure", a.tenure)} />
           <Row k="O que mais atrapalha" v={(a.blockers ?? []).map((b) => (b === "none" ? "Nada específico" : label("blockers", b))).join(", ") || "–"} />
           <Row k="Ritmo" v={label("pace", a.pace)} />
-          <Row k="Compromisso" v={label("commit", a.commit)} />
         </dl>
       </Card>
 
@@ -127,7 +181,7 @@ export function PlanScreen() {
       </Card>
 
       <Disclaimer className="mt-6" />
-      <Cta onClick={() => setStage("email")}>Quero meu plano</Cta>
+      <Cta onClick={() => setStage(state.leadId && state.email ? "start" : "email")}>Quero fazer o desafio</Cta>
     </Page>
   );
 }
@@ -239,7 +293,7 @@ function EmailStep({
   leadId?: string;
   attribution: Attribution;
   onBack: () => void;
-  onDone: (email: string, leadId: string) => void;
+  onDone: (email: string, leadId: string, marketingOk: boolean) => void;
 }) {
   const [email, setEmail] = useState(initialEmail);
   const [marketing, setMarketing] = useState(false);
@@ -253,20 +307,11 @@ function EmailStep({
     setBusy(true);
     setError(null);
     try {
-      const attribution = { ...attr, ...metaCookies(attr) };
       const res = await fetch("/api/w2a/lead", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          email: email.trim(),
-          name: a.name?.trim() || null,
-          answers: a,
-          plan: { kind: proj.kind, startKg: proj.startKg, targetKg: proj.targetKg, weeks: proj.weeks, date: proj.date, month1Kg: proj.month1Kg, clamped: proj.clamped },
-          attribution,
-          quizVersion: QUIZ_VERSION,
-          locale: "pt-BR",
-          marketingOk: marketing,
-          leadId,
+          ...leadBody(a, proj, email.trim(), attr, leadId, marketing),
           company: (document.getElementById("w2a-company") as HTMLInputElement | null)?.value || undefined,
         }),
       });
@@ -275,7 +320,7 @@ function EmailStep({
       if (j.leadId !== leadId) track("Lead", { content_name: "quiz_email" }, `lead_${j.leadId}`);
       identifyLead(j.leadId, email.trim().toLowerCase());
       capture("w2a_lead", { quiz: QUIZ_VERSION });
-      onDone(email.trim().toLowerCase(), j.leadId);
+      onDone(email.trim().toLowerCase(), j.leadId, marketing);
     } catch (err) {
       setError(String(err).includes("email") ? "Confira o seu e-mail." : "Não conseguimos salvar agora. Tente de novo em instantes.");
       setBusy(false);
@@ -287,7 +332,7 @@ function EmailStep({
       <TopBar onBack={onBack} />
       <form onSubmit={submit} noValidate>
         <div className="mx-auto mt-8 flex size-16 items-center justify-center rounded-full bg-tint text-[30px]" aria-hidden="true">✉️</div>
-        <Title sub="Vamos guardar o seu plano e te mandar o acesso ao app por aqui.">Para onde enviamos o seu plano?</Title>
+        <Title sub="Vamos guardar o seu desafio e te mandar o acesso ao app por aqui.">Para onde enviamos o seu desafio?</Title>
         <input
           autoFocus
           type="email"
@@ -320,9 +365,147 @@ function EmailStep({
           . Suas respostas não são compartilhadas com anunciantes.
         </p>
         <Cta type="submit" disabled={!valid} busy={busy}>
-          Ver meu plano completo
+          Continuar
         </Cta>
       </form>
+    </Page>
+  );
+}
+
+/** Day 1 → day 30, the estimate at day 30 and the three phases. */
+function ChallengeCard({ a, proj }: { a: Answers; proj: Projection }) {
+  const start = a.challengeStart ?? isoDay(new Date());
+  const kg30 = kgAtDay30(proj);
+  return (
+    <Card>
+      <div className="text-[12px] font-semibold tracking-[0.12em] text-mute uppercase">Desafio Carnívoro de 30 dias</div>
+      <div className="mt-3 flex items-stretch gap-3">
+        <DayBox day="Dia 1" date={fmtDayShort(start)} value={fmtKg(proj.startKg)} />
+        <div className="flex flex-none items-center text-[20px] text-faint" aria-hidden="true">→</div>
+        <DayBox
+          day="Dia 30"
+          date={fmtDayShort(dayEnd(start))}
+          value={kg30 !== null ? `~${fmtKg(kg30)}` : "30 dias limpos"}
+          accent
+        />
+      </div>
+      {kg30 !== null ? (
+        <p className="mt-3 text-[12.5px] leading-relaxed text-mute">
+          Estimativa para o dia 30: cerca de <b className="text-ink">{fmtKg(Math.round((proj.startKg - kg30) * 10) / 10)}</b> a menos. Parte disso costuma ser água nos primeiros dias.
+        </p>
+      ) : (
+        <p className="mt-3 text-[12.5px] leading-relaxed text-mute">A meta do desafio é a constância: 30 dias marcados no calendário, com sal e água no ponto.</p>
+      )}
+      <ol className="mt-4 flex flex-col">
+        {PHASES.map((ph, i) => (
+          <li key={ph.title} className="relative flex gap-3 pb-4 last:pb-0">
+            {i < PHASES.length - 1 && <span className="absolute top-7 bottom-0 left-[13px] w-0.5 bg-line" aria-hidden="true" />}
+            <span className="relative flex size-7 flex-none items-center justify-center rounded-full bg-walnut text-[12px] font-bold text-white" aria-hidden="true">
+              {i + 1}
+            </span>
+            <span>
+              <span className="block text-[14px] font-extrabold">
+                {ph.when} · {ph.title}
+                <span className="ml-1.5 text-[12px] font-normal text-mute">dias {ph.days[0]}–{ph.days[1]}</span>
+              </span>
+              <span className="mt-0.5 block text-[12.5px] leading-relaxed text-mute">{ph.body}</span>
+            </span>
+          </li>
+        ))}
+      </ol>
+    </Card>
+  );
+}
+
+function DayBox({ day, date, value, accent }: { day: string; date: string; value: string; accent?: boolean }) {
+  return (
+    <div className={cn("flex-1 rounded-2xl p-3.5", accent ? "bg-[#4a7a3a]/10" : "bg-tint")}>
+      <div className="text-[12px] leading-tight text-mute">
+        <b className="block text-[13px] text-ink">{day}</b>
+        {date}
+      </div>
+      <div className={cn("mt-1 text-[20px] leading-tight font-extrabold tracking-[-0.02em]", accent && "text-good")}>{value}</div>
+    </div>
+  );
+}
+
+function StartStep({ a, onBack, onDone }: { a: Answers; onBack: () => void; onDone: (pick: StartPick, iso: string) => void }) {
+  const opts = useMemo(() => startOptions(), []);
+  const [pick, setPick] = useState<StartPick | null>(() => opts.find((o) => o.id === a.challengeStartPick)?.id ?? null);
+  const sel = opts.find((o) => o.id === pick);
+  useEffect(() => {
+    window.scrollTo(0, 0);
+    capture("w2a_challenge_start_view", { quiz: QUIZ_VERSION });
+  }, []);
+  return (
+    <Page>
+      <TopBar onBack={onBack} />
+      <div className="mx-auto mt-8 flex size-16 items-center justify-center rounded-full bg-tint text-[30px]" aria-hidden="true">🏁</div>
+      <Title sub="Escolha o seu dia 1. Começar logo ajuda: quanto mais perto, mais fácil manter a decisão.">Quando você começa?</Title>
+      <div role="radiogroup" className="flex flex-col gap-2.5">
+        {opts.map((o) => (
+          <Option key={o.id} selected={pick === o.id} onClick={() => setPick(o.id)} hint={fmtDayLong(o.iso)}>
+            {o.label}
+          </Option>
+        ))}
+      </div>
+      {sel && (
+        <Card className="mt-5 animate-in fade-in duration-300 bg-tint text-center">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <div className="text-[12px] font-bold text-mute">Dia 1</div>
+              <div className="mt-0.5 text-[16px] leading-snug font-extrabold">{fmtDayLong(sel.iso)}</div>
+            </div>
+            <div>
+              <div className="text-[12px] font-bold text-mute">Dia 30</div>
+              <div className="mt-0.5 text-[16px] leading-snug font-extrabold text-good">{fmtDayLong(dayEnd(sel.iso))}</div>
+            </div>
+          </div>
+        </Card>
+      )}
+      <Cta onClick={() => sel && onDone(sel.id, sel.iso)} disabled={!sel}>
+        Continuar
+      </Cta>
+    </Page>
+  );
+}
+
+function PledgeStep({ a, onBack, onAccept }: { a: Answers; onBack: () => void; onAccept: () => void }) {
+  const start = a.challengeStart ?? isoDay(new Date());
+  const name = a.name?.trim();
+  useEffect(() => {
+    window.scrollTo(0, 0);
+    capture("w2a_challenge_pledge_view", { quiz: QUIZ_VERSION });
+  }, []);
+  return (
+    <Page>
+      <TopBar onBack={onBack} />
+      <Title sub="Leia com calma: é um combinado seu com você mesmo(a).">Seu compromisso</Title>
+      <Card className="relative overflow-hidden border-walnut/30 text-center">
+        <div className="text-[11px] font-semibold tracking-[0.16em] text-walnut uppercase">Desafio Carnívoro de 30 dias</div>
+        <div className="mt-3 text-[26px] leading-tight font-extrabold tracking-[-0.025em]">{name || "Eu"}</div>
+        <div className="mt-1 text-[13.5px] text-mute">
+          de {fmtDayLong(start)} a {fmtDayLong(dayEnd(start))}
+        </div>
+        <div className="mx-auto my-4 h-px w-16 bg-line" />
+        <div className="text-left text-[13px] font-bold">Eu me comprometo a:</div>
+        <ul className="mt-2.5 flex flex-col gap-2.5 text-left text-[14px] leading-relaxed">
+          {pledgeLines(a).map((l) => (
+            <li key={l} className="flex gap-2.5">
+              <svg viewBox="0 0 24 24" className="mt-1 size-4 flex-none text-good" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M5 12.5l4.5 4.5L19 7.5" />
+              </svg>
+              {l}
+            </li>
+          ))}
+        </ul>
+      </Card>
+      <p className="mt-5 text-center text-[12.5px] leading-relaxed text-mute text-balance">
+        O LeoDiet é onde você faz o desafio: marca o dia, toma o sal e a água e vê o calendário ficar verde até o dia 30.
+      </p>
+      <HoldButton onConfirm={onAccept} doneLabel="Desafio aceito ✓">
+        Eu aceito o desafio
+      </HoldButton>
     </Page>
   );
 }
