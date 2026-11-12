@@ -8,7 +8,7 @@ const HTML = renderLanding({
   slug: "lp-us",
   lang: "en-US",
   ogLocale: "en_US",
-  title: "LeoDiet — Start carnivore the right way",
+  title: "LeoDiet — Carnivore Diet Tracker App",
   description: "The app that works out your salt and water, reminds you every day and shows your streak of clean days on carnivore.",
   ogDescription: "Salt, water and clean days. The app that keeps you on carnivore.",
   // Links de campanha: Google Ads EUA
