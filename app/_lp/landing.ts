@@ -52,16 +52,20 @@ export type LandingConfig = {
   ctaBody: string;
   disclaimer: string;
   footer: { privacy: string; terms: string; support: string };
+  /** Google Ads: `send_to` da conversão de clique na loja (ex. "AW-123/abc"). Sem isso a landing não carrega o gtag. */
+  gads?: string;
 };
 
 // Roda no <head>, antes do <body>: stub do pixel (as chamadas entram na fila até o fbevents.js async chegar),
 // lp_view no PostHog e um listener de clique no document para os links com data-store.
-function headScript(page: string) {
+function headScript(page: string, gads?: string) {
   const vaEvent = page.replace(/-/g, "_") + "_store_click";
   return `(function(w,d){
 var K=${JSON.stringify(POSTHOG_KEY)},H=${JSON.stringify(POSTHOG_CAPTURE)};
 !function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(w,d,'script','https://connect.facebook.net/en_US/fbevents.js');
-fbq('init','${META_PIXEL_ID}');fbq('track','PageView');
+fbq('init','${META_PIXEL_ID}');fbq('track','PageView');${gads ? `
+w.dataLayer=w.dataLayer||[];w.gtag=function(){w.dataLayer.push(arguments)};gtag('js',new Date());gtag('config','${gads.split("/")[0]}');
+(function(){var t=d.createElement('script');t.async=!0;t.src='https://www.googletagmanager.com/gtag/js?id=${gads.split("/")[0]}';var s=d.getElementsByTagName('script')[0];s.parentNode.insertBefore(t,s)})();` : ""}
 w.va=w.va||function(){(w.vaq=w.vaq||[]).push(arguments)};
 function uuid(){try{return crypto.randomUUID()}catch(e){return 'v'+Date.now().toString(36)+Math.random().toString(36).slice(2)}}
 function vid(){try{var i=localStorage.getItem('lp_vid');if(!i){i=uuid();localStorage.setItem('lp_vid',i)}return i}catch(e){return uuid()}}
@@ -69,7 +73,7 @@ function cap(ev,x){var q=new URLSearchParams(location.search),ua=navigator.userA
 for(k in x)p[k]=x[k];
 p.page='${page}';p.platform=/iPhone|iPad|iPod/.test(ua)?'ios':/Android/.test(ua)?'android':'desktop';
 ['utm_source','utm_campaign','utm_content'].forEach(function(n){var v=q.get(n);if(v!==null)p[n]=v});
-p.from_meta_ad=q.has('fbclid');p.$current_url=location.href;p.$process_person_profile=false;
+p.from_meta_ad=q.has('fbclid');p.from_google_ad=q.has('gclid')||q.has('gbraid')||q.has('wbraid');p.$current_url=location.href;p.$process_person_profile=false;
 var b=JSON.stringify({api_key:K,event:ev,distinct_id:vid(),properties:p});
 try{if(!navigator.sendBeacon||!navigator.sendBeacon(H,b))throw 0}catch(e){try{fetch(H,{method:'POST',body:b,keepalive:true}).catch(function(){})}catch(e2){}}}
 try{cap('lp_view',{})}catch(e){}
@@ -88,7 +92,8 @@ e.preventDefault();if(busy)return;busy=1;
 var s=a.getAttribute('data-store'),href=s==='google_play'?play(a.href):a.href;
 try{w.va('event',{name:'${vaEvent}',data:{store:s}})}catch(x){}
 try{cap('lp_store_click',{store:s})}catch(x){}
-try{w.fbq('track','Lead',{content_name:s})}catch(x){}
+try{w.fbq('track','Lead',{content_name:s})}catch(x){}${gads ? `
+try{w.gtag('event','conversion',{send_to:'${gads}',transport_type:'beacon'})}catch(x){}` : ""}
 setTimeout(function(){busy=0;location.href=href},300)});
 })(window,document);`;
 }
@@ -161,7 +166,7 @@ export function renderLanding(c: LandingConfig): string {
 <meta property="og:image:width" content="440">
 <meta property="og:image:height" content="${og.h}">
 <style>${CSS}</style>
-<script>${headScript(c.slug)}</script>
+<script>${headScript(c.slug, c.gads)}</script>
 </head>
 <body>
 <div class="w">
